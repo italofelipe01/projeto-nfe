@@ -1,0 +1,120 @@
+@font-face {
+    font-family: 'Fedra Sans Pro';
+    src: url('FedraSansPro-Medium.eot');
+    src: local('Fedra Sans Pro Medium'), local('FedraSansPro-Medium'),
+        url('FedraSansPro-Medium.eot?#iefix') format('embedded-opentype'),
+        url('FedraSansPro-Medium.woff2') format('woff2'),
+        url('FedraSansPro-Medium.woff') format('woff'),
+        url('FedraSansPro-Medium.ttf') format('truetype');
+    font-weight: 500;
+    font-style: normal;
+}
+
+@font-face {
+    font-family: 'Fedra Sans Pro Book';
+    src: url('FedraSansPro-BookItalic.eot');
+    src: local('Fedra Sans Pro Book Italic'), local('FedraSansPro-BookItalic'),
+        url('FedraSansPro-BookItalic.eot?#iefix') format('embedded-opentype'),
+        url('FedraSansPro-BookItalic.woff2') format('woff2'),
+        url('FedraSansPro-BookItalic.woff') format('woff'),
+        url('FedraSansPro-BookItalic.ttf') format('truetype');
+    font-weight: normal;
+    font-style: italic;
+}
+
+@font-face {
+    font-family: 'Fedra Sans Pro';
+    src: url('FedraSansPro-MediumItalic.eot');
+    src: local('Fedra Sans Pro Medium Italic'), local('FedraSansPro-MediumItalic'),
+        url('FedraSansPro-MediumItalic.eot?#iefix') format('embedded-opentype'),
+        url('FedraSansPro-MediumItalic.woff2') format('woff2'),
+        url('FedraSansPro-MediumItalic.woff') format('woff'),
+        url('FedraSansPro-MediumItalic.ttf') format('truetype');
+    font-weight: 500;
+    font-style: italic;
+}
+
+@font-face {
+    font-family: 'Fedra Sans Pro';
+    src: url('FedraSansPro-BoldItalic.eot');
+    src: local('Fedra Sans Pro Bold Italic'), local('FedraSansPro-BoldItalic'),
+        url('FedraSansPro-BoldItalic.eot?#iefix') format('embedded-opentype'),
+        url('FedraSansPro-BoldItalic.woff2') format('woff2'),
+        url('FedraSansPro-BoldItalic.woff') format('woff'),
+        url('FedraSansPro-BoldItalic.ttf') format('truetype');
+    font-weight: bold;
+    font-style: italic;
+}
+
+@font-face {
+    font-family: 'Fedra Sans Pro';
+    src: url('FedraSansPro-Bold.eot');
+    src: local('Fedra Sans Pro Bold'), local('FedraSansPro-Bold'),
+        url('FedraSansPro-Bold.eot?#iefix') format('embedded-opentype'),
+        url('FedraSansPro-Bold.woff2') format('woff2'),
+        url('FedraSansPro-Bold.woff') format('woff'),
+        url('FedraSansPro-Bold.ttf') format('truetype');
+    font-weight: bold;
+    font-style: normal;
+}
+
+@font-face {
+    font-family: 'Fedra Sans Pro';
+    src: url('FedraSansPro-LightItalic.eot');
+    src: local('Fedra Sans Pro Light Italic'), local('FedraSansPro-LightItalic'),
+        url('FedraSansPro-LightItalic.eot?#iefix') format('embedded-opentype'),
+        url('FedraSansPro-LightItalic.woff2') format('woff2'),
+        url('FedraSansPro-LightItalic.woff') format('woff'),
+        url('FedraSansPro-LightItalic.ttf') format('truetype');
+    font-weight: 300;
+    font-style: italic;
+}
+
+@font-face {
+    font-family: 'Fedra Sans Pro Book';
+    src: url('FedraSansPro-Book.eot');
+    src: local('Fedra Sans Pro Book'), local('FedraSansPro-Book'),
+        url('FedraSansPro-Book.eot?#iefix') format('embedded-opentype'),
+        url('FedraSansPro-Book.woff2') format('woff2'),
+        url('FedraSansPro-Book.woff') format('woff'),
+        url('FedraSansPro-Book.ttf') format('truetype');
+    font-weight: normal;
+    font-style: normal;
+}
+
+@font-face {
+    font-family: 'Fedra Sans Pro Normal';
+    src: url('FedraSansPro-Normal.eot');
+    src: local('Fedra Sans Pro Normal'), local('FedraSansPro-Normal'),
+        url('FedraSansPro-Normal.eot?#iefix') format('embedded-opentype'),
+        url('FedraSansPro-Normal.woff2') format('woff2'),
+        url('FedraSansPro-Normal.woff') format('woff'),
+        url('FedraSansPro-Normal.ttf') format('truetype');
+    font-weight: normal;
+    font-style: normal;
+}
+
+@font-face {
+    font-family: 'Fedra Sans Pro Normal';
+    src: url('FedraSansPro-NormalItalic.eot');
+    src: local('Fedra Sans Pro Normal Italic'), local('FedraSansPro-NormalItalic'),
+        url('FedraSansPro-NormalItalic.eot?#iefix') format('embedded-opentype'),
+        url('FedraSansPro-NormalItalic.woff2') format('woff2'),
+        url('FedraSansPro-NormalItalic.woff') format('woff'),
+        url('FedraSansPro-NormalItalic.ttf') format('truetype');
+    font-weight: normal;
+    font-style: italic;
+}
+
+@font-face {
+    font-family: 'Fedra Sans Pro';
+    src: url('FedraSansPro-Light.eot');
+    src: local('Fedra Sans Pro Light'), local('FedraSansPro-Light'),
+        url('FedraSansPro-Light.eot?#iefix') format('embedded-opentype'),
+        url('FedraSansPro-Light.woff2') format('woff2'),
+        url('FedraSansPro-Light.woff') format('woff'),
+        url('FedraSansPro-Light.ttf') format('truetype');
+    font-weight: 300;
+    font-style: normal;
+}
+
