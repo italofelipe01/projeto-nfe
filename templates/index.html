@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Conversor de Declarações de Serviços</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+
+    <div class="container">
+        <h1>Conversor de Declarações de Serviços Contratados</h1>
+        <p class="subtitle">Converta arquivos CSV ou XLSX para o formato TXT da prefeitura.</p>
+
+        <div id="step-1" class="step show">
+            <h2>Etapa 1: Configuração e Upload</h2>
+            <form id="upload-form">
+                
+                <div class="card">
+                    <h3>Dados do Tomador (Cabeçalho)</h3>
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label for="inscricao_municipal">Inscrição Municipal*</label>
+                            <input type="text" name="inscricao_municipal" id="inscricao_municipal" placeholder="Inscrição Municipal do Tomador" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="mes">Mês da Competência*</label>
+                            <input type="number" name="mes" id="mes" placeholder="Mês (1-12)" min="1" max="12" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="ano">Ano da Competência*</label>
+                            <input type="number" name="ano" id="ano" placeholder="Ano (AAAA)" min="2000" max="2100" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="razao_social">Nome/Razão Social do Tomador*</label>
+                            <input type="text" name="razao_social" id="razao_social" placeholder="Razão Social do Tomador" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="codigo_servico">Código do Serviço Contratado*</label>
+                            <input type="text" name="codigo_servico" id="codigo_servico" placeholder="Código do Serviço" required>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <h3>Configurações de Importação</h3>
+                    <div class="form-grid-options">
+                        <div class="form-group-radio">
+                            <span>Separador decimal usado no seu arquivo:</span>
+                            <label>
+                                <input type="radio" name="separador_decimal" value="virgula" checked> Vírgula (,)
+                            </label>
+                            <label>
+                                <input type="radio" name="separador_decimal" value="ponto"> Ponto (.)
+                            </label>
+                        </div>
+                        <div class="form-group-radio">
+                            <span>Possui dígito verificador?</span>
+                            <label>
+                                <input type="radio" name="digito_verificador" value="sim"> Sim
+                            </label>
+                            <label>
+                                <input type="radio" name="digito_verificador" value="nao" checked> Não
+                            </label>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="card">
+                    <h3>Arquivo de Origem</h3>
+                    <div class="upload-area" id="upload-area">
+                        <input type="file" name="file" id="file-input" accept=".csv,.xlsx" required>
+                        <label for="file-input" id="file-label">
+                            Clique ou arraste o arquivo (.csv ou .xlsx) aqui
+                        </label>
+                        <p id="file-name-preview"></p>
+                    </div>
+                </div>
+
+                <button type="submit" id="convert-btn" class="btn-primary" disabled>Converter</button>
+            </form>
+        </div>
+
+        <div id="step-2" class="step hide">
+            <h2>Etapa 2: Processando Arquivo...</h2>
+            <div class="progress-container">
+                <p id="status-message">Iniciando conversão...</p>
+                <div class="progress-bar">
+                    <div id="progress-fill" style="width: 0%"></div>
+                </div>
+                <p id="progress-text">0%</p>
+                <p id="progress-details"></p>
+            </div>
+        </div>
+
+        <div id="step-3" class="step hide">
+            <h2>Etapa 3: Conversão Concluída</h2>
+            <div class="result-summary card">
+                <h3>Resumo da Conversão</h3>
+                <div class="stats">
+                    <p>Total de registros: <span id="total-records">0</span></p>
+                    <p class="success-text">Processados com sucesso: <span id="success-records">0</span></p>
+                    <p class="error-text">Com erros: <span id="error-records">0</span></p>
+                </div>
+                
+                <div id="download-section">
+                    <button id="download-btn" class="btn-primary">
+                        Baixar Arquivo TXT
+                    </button>
+                </div>
+
+                <div id="errors-list" class="errors hide">
+                    <h4>Detalhes dos Erros</h4>
+                    <pre id="errors-content"></pre>
+                </div>
+
+                <button id="new-conversion-btn" class="btn-secondary">
+                    Converter Novo Arquivo
+                </button>
+            </div>
+        </div>
+
+    </div>
+
+    <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+</body>
+</html>

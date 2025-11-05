@@ -1,0 +1,5 @@
+Modelo;Numero Documento;Base de Cálculo;Valor Total;Alíquota;Data Emissão;Dt. Pagamento;CPF/CNPJ Prestador;Razão Social;IM;ISS Retido;CEP;Endereço Prestador;numero;Bairro;Município;UF/Estado;DDD;tribut. municipio
+55;1001;1000,00;1000,00;5;20/10/2025;25/10/2025;11222333000144;Empresa Prestadora A;98765;1;74000000;Rua Exemplo 1;100;Centro;Goiânia;GO;62;1
+55;1002;R$ 500,00;R$ 500,00;2,0;2025-10-21;;22.333.444/0001-55;Empresa Prestadora B;98766;NÃO;74000-100;Rua Exemplo 2;S/N;Setor Sul;Goiânia;GO;62;0
+55;1003;200,00;150,00;5;22/10/2025;;33444555000166;Empresa com Erro C;98767;SIM;74000200;Rua Exemplo 3;200;Oeste;Goiânia;GO;62;1
+55;1004;300,00;300,00;3;23/10/2025;;44.555.666/0001-77;Empresa D;;N;74000300;Rua Exemplo 4;;;;GO;;1
