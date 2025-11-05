@@ -1,0 +1,11 @@
+# Arquivos gerados
+downloads/
+uploads/
+
+# Ambiente virtual
+venv/
+.venv/
+__pycache__/
+
+# Variáveis de ambiente
+.env

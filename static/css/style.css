@@ -1,0 +1,289 @@
+/* Configurações Globais e Variáveis */
+:root {
+    --cor-primaria: #007bff;
+    --cor-secundaria: #6c757d;
+    --cor-sucesso: #28a745;
+    --cor-erro: #dc3545;
+    --cor-aviso: #ffc107;
+    --cor-fundo: #f4f7f6;
+    --cor-borda: #dee2e6;
+    --cor-texto: #333;
+    --raio-borda: 8px;
+}
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background-color: var(--cor-fundo);
+    color: var(--cor-texto);
+    line-height: 1.6;
+    margin: 0;
+    padding: 20px;
+}
+
+.container {
+    max-width: 800px;
+    margin: 20px auto;
+    padding: 20px;
+    background-color: #fff;
+    border-radius: var(--raio-borda);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+}
+
+h1 {
+    color: var(--cor-primaria);
+    text-align: center;
+    margin-bottom: 5px;
+}
+
+h2 {
+    color: var(--cor-texto);
+    border-bottom: 2px solid var(--cor-fundo);
+    padding-bottom: 10px;
+    margin-top: 0;
+}
+
+.subtitle {
+    text-align: center;
+    color: var(--cor-secundaria);
+    margin-top: 0;
+    margin-bottom: 20px;
+}
+
+/* --- Estilos das Etapas (Conforme arquitetura_projeto.pdf) --- */
+.step {
+    transition: opacity 0.3s ease-in-out;
+}
+
+.step.hide {
+    display: none;
+    opacity: 0;
+}
+
+.step.show {
+    display: block;
+    opacity: 1;
+}
+
+/* --- Estilos de Card (Conforme arquitetura_projeto.pdf) --- */
+.card {
+    background-color: #fdfdfd;
+    border: 1px solid var(--cor-borda);
+    border-radius: var(--raio-borda);
+    padding: 20px;
+    margin-bottom: 20px;
+}
+
+.card h3 {
+    margin-top: 0;
+    color: var(--cor-primaria);
+}
+
+/* --- Estilos de Formulário --- */
+.form-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+}
+
+.form-grid .form-group {
+    grid-column: span 1;
+}
+
+/* Campo de Razão Social ocupa a linha inteira */
+.form-grid .form-group:nth-child(4),
+.form-grid .form-group:nth-child(5) {
+    grid-column: span 2;
+}
+
+.form-group label {
+    display: block;
+    font-weight: bold;
+    margin-bottom: 5px;
+}
+
+.form-group input[type="text"],
+.form-group input[type="number"] {
+    width: 100%;
+    padding: 10px;
+    border: 1px solid var(--cor-borda);
+    border-radius: var(--raio-borda);
+    box-sizing: border-box; /* Garante que o padding não afete a largura */
+}
+
+.form-grid-options {
+    display: flex;
+    justify-content: space-around;
+    gap: 20px;
+}
+
+.form-group-radio span {
+    font-weight: bold;
+    display: block;
+    margin-bottom: 10px;
+}
+.form-group-radio label {
+    margin-right: 15px;
+}
+
+/* --- Área de Upload --- */
+.upload-area {
+    border: 2px dashed var(--cor-primaria);
+    border-radius: var(--raio-borda);
+    padding: 30px;
+    text-align: center;
+    background-color: #f8faff;
+    transition: background-color 0.2s;
+}
+
+.upload-area.dragover {
+    background-color: #e6f0ff;
+}
+
+.upload-area input[type="file"] {
+    display: none; /* Oculta o input real */
+}
+
+.upload-area label {
+    font-weight: bold;
+    color: var(--cor-primaria);
+    cursor: pointer;
+    font-size: 1.1em;
+}
+
+#file-name-preview {
+    margin-top: 10px;
+    font-weight: bold;
+    color: var(--cor-secundaria);
+}
+
+
+/* --- Botões --- */
+.btn-primary, .btn-secondary {
+    display: block;
+    width: 100%;
+    padding: 12px;
+    font-size: 1.1em;
+    font-weight: bold;
+    border: none;
+    border-radius: var(--raio-borda);
+    cursor: pointer;
+    transition: background-color 0.2s;
+    text-align: center;
+    text-decoration: none;
+}
+
+.btn-primary {
+    background-color: var(--cor-primaria);
+    color: #fff;
+}
+.btn-primary:hover:not(:disabled) {
+    background-color: #0056b3;
+}
+.btn-primary:disabled {
+    background-color: var(--cor-secundaria);
+    cursor: not-allowed;
+}
+
+.btn-secondary {
+    background-color: var(--cor-secundaria);
+    color: #fff;
+    margin-top: 10px;
+}
+.btn-secondary:hover {
+    background-color: #5a6268;
+}
+
+
+/* --- Etapa 2: Barra de Progresso (Conforme arquitetura_projeto.pdf) --- */
+.progress-container {
+    text-align: center;
+    padding: 20px 0;
+}
+
+.progress-bar {
+    width: 100%;
+    height: 30px;
+    background: var(--cor-fundo);
+    border: 1px solid var(--cor-borda);
+    border-radius: 15px;
+    overflow: hidden;
+    margin: 15px 0;
+}
+
+#progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #4CAF50, #28a745);
+    width: 0%;
+    transition: width 0.3s ease;
+}
+
+#status-message {
+    font-size: 1.2em;
+    font-weight: bold;
+}
+#progress-text {
+    font-size: 1.1em;
+    font-weight: bold;
+    color: var(--cor-primaria);
+}
+#progress-details {
+    color: var(--cor-secundaria);
+}
+
+
+/* --- Etapa 3: Resultado --- */
+.result-summary {
+    text-align: center;
+}
+.stats {
+    font-size: 1.2em;
+    line-height: 1.8;
+}
+.success-text {
+    color: var(--cor-sucesso);
+    font-weight: bold;
+}
+.error-text {
+    color: var(--cor-erro);
+    font-weight: bold;
+}
+
+#download-section {
+    margin: 20px 0;
+}
+
+.errors {
+    background-color: #fff6f6;
+    border: 1px solid var(--cor-erro);
+    border-radius: var(--raio-borda);
+    padding: 15px;
+    margin-top: 20px;
+    text-align: left;
+}
+.errors h4 {
+    color: var(--cor-erro);
+    margin-top: 0;
+}
+.errors pre {
+    white-space: pre-wrap; /* Quebra de linha */
+    word-wrap: break-word;
+    max-height: 200px;
+    overflow-y: auto;
+    background: #fff;
+    padding: 10px;
+    border-radius: var(--raio-borda);
+}
+
+/* --- Responsividade (Layout simples) --- */
+@media (max-width: 600px) {
+    .form-grid {
+        grid-template-columns: 1fr; /* Coluna única */
+    }
+    .form-grid .form-group:nth-child(4),
+    .form-grid .form-group:nth-child(5) {
+        grid-column: span 1; /* Coluna única */
+    }
+    .form-grid-options {
+        flex-direction: column;
+    }
+}
