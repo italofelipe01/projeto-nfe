@@ -1,13 +1,14 @@
 import os
 import uuid
 import threading
+import pandas as pd  # <-- MODIFICAÇÃO: Importar pandas
 from flask import Flask, render_template, request, jsonify, send_from_directory
 from werkzeug.utils import secure_filename
 
 # --- Importações Internas do Projeto ---
 
 # Importa as configurações (UPLOADS_DIR, DOWNLOADS_DIR, etc.)
-from app.config import UPLOADS_DIR, DOWNLOADS_DIR, ALLOWED_EXTENSIONS
+from app.config import UPLOADS_DIR, DOWNLOADS_DIR, ALLOWED_EXTENSIONS, PROJECT_ROOT
 
 # Importa a função de conversão (que criaremos a seguir)
 try:
@@ -45,6 +46,29 @@ os.makedirs(DOWNLOADS_DIR, exist_ok=True)
 # (Conforme 'arquitetura_projeto.pdf')
 conversions = {}
 
+# --- INÍCIO DA MODIFICAÇÃO: Carregar Configurações ---
+def load_configurations():
+    """Lê o 'configuracoes.csv' e retorna uma lista de dicionários."""
+    try:
+        # Usa o PROJECT_ROOT do config.py para encontrar o CSV na raiz
+        csv_path = os.path.join(PROJECT_ROOT, 'configuracoes.csv')
+        df = pd.read_csv(csv_path)
+        
+        # Converte o DataFrame para uma lista de dicionários
+        # 'records' é o formato [{coluna: valor}, {coluna: valor}, ...]
+        return df.to_dict('records')
+    except FileNotFoundError:
+        print("AVISO: 'configuracoes.csv' não encontrado. O dropdown ficará vazio.")
+        return []
+    except Exception as e:
+        print(f"Erro ao ler 'configuracoes.csv': {e}")
+        return []
+
+# Carrega as configurações UMA VEZ quando o servidor inicia
+app_configurations = load_configurations()
+# --- FIM DA MODIFICAÇÃO ---
+
+
 # --- Funções Auxiliares ---
 
 def allowed_file(filename):
@@ -80,7 +104,9 @@ def index():
     Renderiza o formulário HTML (index.html).
     (Conforme 'arquitetura_projeto.pdf')
     """
-    return render_template('index.html')
+    # --- INÍCIO DA MODIFICAÇÃO: Passa as configurações para o template ---
+    return render_template('index.html', configurations=app_configurations)
+    # --- FIM DA MODIFICAÇÃO ---
 
 @app.route('/upload', methods=['POST'])
 def upload_file():

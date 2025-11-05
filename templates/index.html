@@ -19,10 +19,30 @@
                 <div class="card">
                     <h3>Dados do Tomador (Cabeçalho)</h3>
                     <div class="form-grid">
+                        
+                        <div class="form-group" style="grid-column: span 2;">
+                            <label for="config-selector">Selecionar Configuração de Tomador</label>
+                            <select id="config-selector" name="config_selector" class="config-select"> 
+                                <option value="">-- Selecione uma empresa --</option>
+                                
+                                {% for config in configurations %}
+                                    <option value="{{ config.id }}"
+                                            data-razao="{{ config.razao_social }}"
+                                            data-inscricao="{{ config.inscricao_municipal }}">
+                                        {{ config.nome_dropdown }}
+                                    </option>
+                                {% endfor %}
+                            </select>
+                        </div>
                         <div class="form-group">
                             <label for="inscricao_municipal">Inscrição Municipal*</label>
-                            <input type="text" name="inscricao_municipal" id="inscricao_municipal" placeholder="Inscrição Municipal do Tomador" required>
+                            <input type="text" name="inscricao_municipal" id="inscricao_municipal" placeholder="Selecione uma empresa acima" required>
                         </div>
+                        <div class="form-group">
+                            <label for="razao_social">Nome/Razão Social do Tomador*</label>
+                            <input type="text" name="razao_social" id="razao_social" placeholder="Selecione uma empresa acima" required>
+                        </div>
+
                         <div class="form-group">
                             <label for="mes">Mês da Competência*</label>
                             <input type="number" name="mes" id="mes" placeholder="Mês (1-12)" min="1" max="12" required>
@@ -31,11 +51,7 @@
                             <label for="ano">Ano da Competência*</label>
                             <input type="number" name="ano" id="ano" placeholder="Ano (AAAA)" min="2000" max="2100" required>
                         </div>
-                        <div class="form-group">
-                            <label for="razao_social">Nome/Razão Social do Tomador*</label>
-                            <input type="text" name="razao_social" id="razao_social" placeholder="Razão Social do Tomador" required>
-                        </div>
-                        <div class="form-group">
+                        <div class="form-group" style="grid-column: span 2;">
                             <label for="codigo_servico">Código do Serviço Contratado*</label>
                             <input type="text" name="codigo_servico" id="codigo_servico" placeholder="Código do Serviço" required>
                         </div>
