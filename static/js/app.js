@@ -2,7 +2,6 @@
 document.addEventListener('DOMContentLoaded', () => {
 
     // --- 1. Seletores de Elementos ---
-    // Seleciona os elementos principais da interface
     const step1 = document.getElementById('step-1');
     const step2 = document.getElementById('step-2');
     const step3 = document.getElementById('step-3');
@@ -29,18 +28,23 @@ document.addEventListener('DOMContentLoaded', () => {
     const downloadBtn = document.getElementById('download-btn');
     const newConversionBtn = document.getElementById('new-conversion-btn');
 
-    let currentTaskId = null; // Armazena o ID da tarefa de conversão
+    // --- INÍCIO DA MODIFICAÇÃO: Seletores do formulário ---
+    const configSelector = document.getElementById('config-selector');
+    const inscricaoInput = document.getElementById('inscricao_municipal');
+    const mesInput = document.getElementById('mes');
+    const anoInput = document.getElementById('ano');
+    const razaoInput = document.getElementById('razao_social');
+    const codigoServicoInput = document.getElementById('codigo_servico');
+    // --- FIM DA MODIFICAÇÃO ---
+
+    let currentTaskId = null;
 
     // --- 2. Função de Controle de Etapas ---
-    // (Conforme 'arquitetura_projeto.pdf')
     function showStep(stepNumber) {
-        // Esconde todas as etapas
         [step1, step2, step3].forEach(step => {
             step.classList.add('hide');
             step.classList.remove('show');
         });
-
-        // Mostra a etapa desejada
         const currentStep = document.getElementById(`step-${stepNumber}`);
         if (currentStep) {
             currentStep.classList.add('show');
@@ -49,19 +53,19 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // --- 3. Validação de Formulário (Etapa 1) ---
-    // Habilita/desabilita o botão "Converter"
     function validateForm() {
+        // Esta função verifica TODOS os inputs com 'required'
+        // Como 'mes', 'ano' e 'codigo_servico' continuam 'required' no HTML,
+        // a validação funcionará como esperado.
         const requiredInputs = uploadForm.querySelectorAll('input[required]');
         let allValid = true;
 
-        // Verifica se todos os campos 'required' estão preenchidos
         requiredInputs.forEach(input => {
             if (!input.value.trim()) {
                 allValid = false;
             }
         });
 
-        // Verifica se o arquivo foi selecionado
         if (fileInput.files.length === 0) {
             allValid = false;
         }
@@ -82,7 +86,7 @@ document.addEventListener('DOMContentLoaded', () => {
         validateForm();
     });
 
-    // --- 4. Drag and Drop de Arquivo (Opcional do 'workflow_conversao.pdf') ---
+    // --- 4. Drag and Drop de Arquivo ---
     uploadArea.addEventListener('dragover', (e) => {
         e.preventDefault();
         uploadArea.classList.add('dragover');
@@ -96,14 +100,11 @@ document.addEventListener('DOMContentLoaded', () => {
         e.preventDefault();
         uploadArea.classList.remove('dragover');
         
-        // Pega o arquivo do 'drop' e o define no input
         if (e.dataTransfer.files.length > 0) {
-            // Valida a extensão (simples)
             const file = e.dataTransfer.files[0];
             const allowedTypes = ['text/csv', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'];
             if (allowedTypes.includes(file.type) || file.name.endsWith('.csv') || file.name.endsWith('.xlsx')) {
                 fileInput.files = e.dataTransfer.files;
-                // Dispara o evento 'change' para atualizar a UI
                 fileInput.dispatchEvent(new Event('change'));
             } else {
                 alert('Tipo de arquivo não permitido. Use .csv ou .xlsx');
@@ -111,20 +112,39 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // --- 5. Envio do Formulário (AJAX) ---
-    // (Conforme 'arquitetura_projeto.pdf')
-    uploadForm.addEventListener('submit', async (e) => {
-        e.preventDefault(); // Impede o recarregamento da página
+    // --- INÍCIO DA MODIFICAÇÃO: Lógica do Dropdown Atualizada ---
+    configSelector.addEventListener('change', () => {
+        // Pega a <option> que foi selecionada
+        const selectedOption = configSelector.options[configSelector.selectedIndex];
+        
+        // Lê APENAS os atributos 'data-razao' e 'data-inscricao'
+        const razao = selectedOption.getAttribute('data-razao') || '';
+        const inscricao = selectedOption.getAttribute('data-inscricao') || '';
+        
+        // Preenche APENAS os valores de Razão Social e Inscrição
+        razaoInput.value = razao;
+        inscricaoInput.value = inscricao;
 
-        // Vai para a etapa 2 (Processamento)
+        // Limpa os campos manuais (Mês, Ano, Código) para forçar o preenchimento
+        mesInput.value = '';
+        anoInput.value = '';
+        codigoServicoInput.value = '';
+
+        // Dispara a validação do formulário. O botão 'Converter'
+        // continuará desativado até que os campos manuais sejam preenchidos.
+        validateForm();
+    });
+    // --- FIM DA MODIFICAÇÃO ---
+
+
+    // --- 5. Envio do Formulário (AJAX) ---
+    uploadForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
         showStep(2);
         resetProgress();
-
-        // Coleta os dados do formulário
         const formData = new FormData(uploadForm);
 
         try {
-            // Envia os dados para a rota /upload
             const response = await fetch('/upload', {
                 method: 'POST',
                 body: formData
@@ -138,7 +158,6 @@ document.addEventListener('DOMContentLoaded', () => {
             
             if (data.task_id) {
                 currentTaskId = data.task_id;
-                // Inicia a verificação de status (Polling)
                 checkStatus(currentTaskId);
             } else {
                 throw new Error('Resposta inválida do servidor (sem task_id).');
@@ -147,12 +166,11 @@ document.addEventListener('DOMContentLoaded', () => {
         } catch (error) {
             console.error('Erro no upload:', error);
             showError('Erro crítico ao iniciar a conversão. Tente novamente.');
-            showStep(1); // Volta para a Etapa 1
+            showStep(1);
         }
     });
 
     // --- 6. Verificação de Status (Polling) ---
-    // (Conforme 'arquitetura_projeto.pdf')
     function checkStatus(taskId) {
         const interval = setInterval(async () => {
             try {
@@ -169,27 +187,25 @@ document.addEventListener('DOMContentLoaded', () => {
                 statusMessage.textContent = data.message;
                 progressDetails.textContent = data.details || '';
 
-                // Verifica se a conversão foi concluída
                 if (data.status === 'completed') {
-                    clearInterval(interval); // Para o polling
-                    showResults(data); // Exibe os resultados
-                    showStep(3); // Vai para a etapa 3
+                    clearInterval(interval);
+                    showResults(data);
+                    showStep(3);
                 }
 
-                // Verifica se houve erro
                 if (data.status === 'error') {
                     clearInterval(interval);
                     showError(data.message);
-                    showStep(3); // Vai para a etapa 3 para mostrar o erro
+                    showStep(3);
                 }
 
             } catch (error) {
                 console.error('Erro no polling:', error);
-                clearInterval(interval); // Para o polling em caso de falha de rede
+                clearInterval(interval);
                 showError('Erro de comunicação. Não foi possível obter o status.');
                 showStep(1);
             }
-        }, 1000); // Verifica a cada 1 segundo
+        }, 1000);
     }
 
     // --- 7. Exibição de Resultados (Etapa 3) ---
@@ -206,14 +222,12 @@ document.addEventListener('DOMContentLoaded', () => {
             errorsContent.textContent = '';
         }
 
-        // Configura o botão de download
         if (data.filename) {
             downloadBtn.disabled = false;
             downloadBtn.onclick = () => {
                 window.location.href = `/download/${data.filename}`;
             };
         } else {
-            // Se não houver arquivo (erro total), desabilita o download
             downloadBtn.disabled = true;
         }
     }
@@ -229,17 +243,13 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // --- 8. Botão "Nova Conversão" ---
-    // (Conforme 'arquitetura_projeto.pdf')
     newConversionBtn.addEventListener('click', () => {
-        // Reseta o formulário e a UI
         uploadForm.reset();
         fileNamePreview.textContent = '';
         fileLabel.textContent = "Clique ou arraste o arquivo (.csv ou .xlsx) aqui";
         convertBtn.disabled = true;
         currentTaskId = null;
         resetProgress();
-        
-        // Volta para a Etapa 1
         showStep(1);
     });
 
