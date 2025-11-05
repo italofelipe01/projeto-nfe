@@ -5,12 +5,19 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Conversor de Declarações de Serviços</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
-</head>
+    
+    <link rel="icon" type="image/png" sizes="32x32" href="{{ url_for('static', filename='images/favicon.png') }}">
+    </head>
 <body>
 
     <div class="container">
+
+        <div class="logo-container">
+            <img src="{{ url_for('static', filename='images/logo-ebm.png') }}" alt="Logo EBM">
+        </div>
+
         <h1>Conversor de Declarações de Serviços Contratados</h1>
-        <p class="subtitle">Converta arquivos CSV ou XLSX para o formato TXT da prefeitura.</p>
+        <p class="subtitle">Prazer em viver assim</p>
 
         <div id="step-1" class="step show">
             <h2>Etapa 1: Configuração e Upload</h2>
