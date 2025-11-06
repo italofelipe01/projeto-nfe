@@ -10,13 +10,14 @@ from app.validators import (
     to_boolean_str,
     format_date_ddmmaaaa,
     format_monetary_value,
-    validate_uf
+    validate_uf,
+    validate_cpf_cnpj  # <-- Importa a nova função
 )
 
 # Importa o diretório de destino do 'config.py'
 from app.config import DOWNLOADS_DIR
 
-# Importa as definições de layout do novo módulo
+# Importa as definições de layout do novo módulo 'layout_config.py'
 from app.layout_config import (
     COLUMN_MAPPING,
     REQUIRED_HEADER_FIELDS,
@@ -86,12 +87,14 @@ def process_conversion(task_id, file_path, form_data, update_status_callback):
         if missing_cols:
             raise ValueError(f"Colunas obrigatórias não encontradas: {', '.join(missing_cols)}")
 
-        # --- 4. Gerar Cabeçalho (Conforme 'regras_layout_txt.pdf') ---
+        # --- 4. Gerar Cabeçalho (Conforme 'modelo.txt') ---
         update_status_callback(task_id, 'processing', 15, 'Gerando cabeçalho...', '')
         
         now = datetime.datetime.now()
-        data_geracao = now.strftime('%d%m%Y')
-        hora_geracao = now.strftime('%H%M%S')
+        
+        # Formata a data/hora exatamente como no 'modelo.txt'
+        hora_geracao = now.strftime('%H:%M') 
+        data_geracao = f"{now.day}/{now.month}/{now.year}"
         
         # Coleta os dados do formulário (Etapa 1)
         inscricao_municipal = form_data.get('inscricao_municipal', '')
@@ -100,16 +103,16 @@ def process_conversion(task_id, file_path, form_data, update_status_callback):
         razao_social_tomador = form_data.get('razao_social', '')
         codigo_servico = form_data.get('codigo_servico', '')
         
+        # Monta a lista de campos do cabeçalho na ordem exata do 'modelo.txt'
         header_parts = [
             inscricao_municipal,
             mes,
             ano,
-            f"{hora_geracao}{data_geracao}{sanitize_and_truncate(razao_social_tomador, 100)}",
+            f"{hora_geracao} {data_geracao}{sanitize_and_truncate(razao_social_tomador, 100)}",
             codigo_servico,
             "EXPORTACAO DECLARACAO ELETRONICA-ONLINE-NOTA CONTROL"
         ]
         
-        # --- INÍCIO DA MODIFICAÇÃO (Refatoração) ---
         # Valida os campos obrigatórios do cabeçalho usando a lista importada
         missing_header_fields = []
         for field in REQUIRED_HEADER_FIELDS:
@@ -118,18 +121,29 @@ def process_conversion(task_id, file_path, form_data, update_status_callback):
                 
         if missing_header_fields:
             raise ValueError(f"Dados obrigatórios do formulário ({', '.join(missing_header_fields)}) estão incompletos.")
-        # --- FIM DA MODIFICAÇÃO ---
 
         header_line = ";".join(header_parts) + ";\n"
 
         # --- 5. Iterar, Validar e Transformar Linhas ---
+        
+        # Antes do loop, encontramos o nome real da coluna do número do documento
+        num_doc_col_name = mapped_cols['numero_documento']
+        
+        # Limpa a coluna do documento *antes* de verificar duplicatas
+        df[num_doc_col_name] = df[num_doc_col_name].apply(clean_numeric_string)
+
+        # Cria uma Série (lista) booleana que marca TODAS as ocorrências de duplicatas
+        is_duplicated_series = df.duplicated(subset=[num_doc_col_name], keep=False)
+
         valid_lines = []
         error_details = []
         processed_count = 0
         success_count = 0
         error_count = 0
         
+        # Pega as opções do formulário ANTES do loop
         source_decimal_sep = form_data.get('separador_decimal', 'virgula')
+        valida_dv = form_data.get('digito_verificador', 'nao')
 
         for i, (index, row) in enumerate(df.iterrows()):
             
@@ -137,14 +151,21 @@ def process_conversion(task_id, file_path, form_data, update_status_callback):
             line_number = i + 2
             row_errors = []
             
-            # --- INÍCIO DA MODIFICAÇÃO (Refatoração) ---
             # Salva os dados validados num dicionário
             validated_row = {}
-            # --- FIM DA MODIFICAÇÃO ---
             
             if processed_count % 20 == 0:
                 progress = 15 + int((processed_count / total_rows) * 80)
                 update_status_callback(task_id, 'processing', progress, 'Validando linhas...', f'Linha {processed_count} de {total_rows}')
+
+            # Verificamos a Série booleana que criámos.
+            if is_duplicated_series.iloc[i]:
+                doc_num = str(row.get(num_doc_col_name, 'N/A')).strip()
+                row_errors.append(f"Documento duplicado ({doc_num}). Esta linha e todas as suas duplicatas foram rejeitadas.")
+                
+                error_count += 1
+                error_details.append(f"Linha {line_number}: {'; '.join(row_errors)}")
+                continue # Pula para o próximo item do 'for'
 
             try:
                 # --- Início da Validação dos 19 Campos ---
@@ -155,7 +176,7 @@ def process_conversion(task_id, file_path, form_data, update_status_callback):
                 validated_row['modelo'] = sanitize_and_truncate(modelo, 2)
                 
                 # 2. Número Documento (Max 20, Numérico)
-                num_doc = clean_numeric_string(row.get(mapped_cols['numero_documento']))
+                num_doc = row.get(num_doc_col_name)
                 if not num_doc: row_errors.append("Número do Documento é obrigatório.")
                 validated_row['numero_documento'] = sanitize_and_truncate(num_doc, 20)
 
@@ -196,6 +217,13 @@ def process_conversion(task_id, file_path, form_data, update_status_callback):
                 # 8. CPF/CNPJ (Max 14, Numérico)
                 cpf_cnpj = clean_numeric_string(row.get(mapped_cols['cpf_cnpj_prestador']))
                 if not cpf_cnpj: row_errors.append("CPF/CNPJ do Prestador é obrigatório.")
+                
+                # --- APLICAÇÃO DA VALIDAÇÃO DE DV ---
+                if valida_dv == 'sim':
+                    # Chama a nova função de validação com o CPF/CNPJ *limpo*
+                    if not validate_cpf_cnpj(cpf_cnpj):
+                        row_errors.append(f"CPF/CNPJ ({cpf_cnpj}) falhou na validação do dígito verificador.")
+                
                 validated_row['cpf_cnpj_prestador'] = sanitize_and_truncate(cpf_cnpj, 14)
 
                 # 9. Razão Social (Max 150, Alfanumérico)
@@ -256,14 +284,10 @@ def process_conversion(task_id, file_path, form_data, update_status_callback):
 
                 # --- 6. Montar a Linha TXT (Se Válida) ---
                 
-                # --- INÍCIO DA MODIFICAÇÃO (Refatoração) ---
                 # Monta a linha final dinamicamente usando a ordem do 'layout_config.py'
                 final_line_parts = []
                 for field_name in BODY_FIELDS_ORDER:
-                    # Usa .get(field_name, "") para garantir que, se um campo
-                    # (como data_pagamento) for None, ele seja substituído por ""
                     final_line_parts.append(validated_row.get(field_name, ""))
-                # --- FIM DA MODIFICAÇÃO ---
                 
                 valid_lines.append(";".join(final_line_parts) + ";\n")
                 success_count += 1

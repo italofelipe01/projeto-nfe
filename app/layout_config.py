@@ -29,8 +29,8 @@ REQUIRED_HEADER_FIELDS = [
     'inscricao_municipal',
     'mes',
     'ano',
-    'razao_social'
-    # 'codigo_servico' foi mantido como opcional conforme solicitado
+    'razao_social',
+    'codigo_servico' # <-- MODIFICAÇÃO: Adicionado de volta
 ]
 
 # Define a ordem exata dos 19 campos no corpo do arquivo TXT

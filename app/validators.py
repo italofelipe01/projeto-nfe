@@ -155,3 +155,80 @@ def validate_uf(uf_str):
         return uf_upper
     
     return None
+
+
+# --- Lógica de Validação de Dígito Verificador (CPF/CNPJ) ---
+
+def _validate_cpf_dv(cpf):
+    """Função interna para validar DV de CPF."""
+    if len(cpf) != 11:
+        return False
+    
+    # Verifica se todos os dígitos são iguais (ex: 111.111.111-11)
+    if cpf == cpf[0] * 11:
+        return False
+
+    # Cálculo do primeiro dígito verificador
+    soma = 0
+    for i in range(9):
+        soma += int(cpf[i]) * (10 - i)
+    resto = soma % 11
+    dv1 = 0 if resto < 2 else 11 - resto
+    
+    if dv1 != int(cpf[9]):
+        return False
+
+    # Cálculo do segundo dígito verificador
+    soma = 0
+    for i in range(10):
+        soma += int(cpf[i]) * (11 - i)
+    resto = soma % 11
+    dv2 = 0 if resto < 2 else 11 - resto
+
+    return dv2 == int(cpf[10])
+
+def _validate_cnpj_dv(cnpj):
+    """Função interna para validar DV de CNPJ."""
+    if len(cnpj) != 14:
+        return False
+
+    # Pesos para o cálculo do primeiro DV
+    pesos1 = [5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2]
+    
+    # Cálculo do primeiro DV
+    soma = 0
+    for i in range(12):
+        soma += int(cnpj[i]) * pesos1[i]
+    resto = soma % 11
+    dv1 = 0 if resto < 2 else 11 - resto
+
+    if dv1 != int(cnpj[12]):
+        return False
+    
+    # Pesos para o cálculo do segundo DV
+    pesos2 = [6, 5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2]
+
+    # Cálculo do segundo DV
+    soma = 0
+    for i in range(13):
+        soma += int(cnpj[i]) * pesos2[i]
+    resto = soma % 11
+    dv2 = 0 if resto < 2 else 11 - resto
+        
+    return dv2 == int(cnpj[13])
+
+def validate_cpf_cnpj(number_str):
+    """
+    Valida o dígito verificador de um CPF (11 dígitos) ou CNPJ (14 dígitos).
+    Espera receber uma string *já limpa* (apenas números).
+    """
+    if not number_str:
+        return False
+        
+    if len(number_str) == 11:
+        return _validate_cpf_dv(number_str)
+    elif len(number_str) == 14:
+        return _validate_cnpj_dv(number_str)
+    else:
+        # Se não tiver 11 ou 14 dígitos, é inválido para esta validação.
+        return False
