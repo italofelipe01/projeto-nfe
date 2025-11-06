@@ -28,14 +28,13 @@ document.addEventListener('DOMContentLoaded', () => {
     const downloadBtn = document.getElementById('download-btn');
     const newConversionBtn = document.getElementById('new-conversion-btn');
 
-    // --- INÍCIO DA MODIFICAÇÃO: Seletores do formulário ---
+    // Seletores dos campos do formulário
     const configSelector = document.getElementById('config-selector');
     const inscricaoInput = document.getElementById('inscricao_municipal');
     const mesInput = document.getElementById('mes');
     const anoInput = document.getElementById('ano');
     const razaoInput = document.getElementById('razao_social');
     const codigoServicoInput = document.getElementById('codigo_servico');
-    // --- FIM DA MODIFICAÇÃO ---
 
     let currentTaskId = null;
 
@@ -55,8 +54,6 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- 3. Validação de Formulário (Etapa 1) ---
     function validateForm() {
         // Esta função verifica TODOS os inputs com 'required'
-        // Como 'mes', 'ano' e 'codigo_servico' continuam 'required' no HTML,
-        // a validação funcionará como esperado.
         const requiredInputs = uploadForm.querySelectorAll('input[required]');
         let allValid = true;
 
@@ -99,7 +96,7 @@ document.addEventListener('DOMContentLoaded', () => {
     uploadArea.addEventListener('drop', (e) => {
         e.preventDefault();
         uploadArea.classList.remove('dragover');
-        
+
         if (e.dataTransfer.files.length > 0) {
             const file = e.dataTransfer.files[0];
             const allowedTypes = ['text/csv', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'];
@@ -112,26 +109,41 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // --- INÍCIO DA MODIFICAÇÃO: Lógica do Dropdown Atualizada ---
+    // --- INÍCIO DA MODIFICAÇÃO (Lógica do Dropdown de Produção) ---
     configSelector.addEventListener('change', () => {
         // Pega a <option> que foi selecionada
         const selectedOption = configSelector.options[configSelector.selectedIndex];
-        
-        // Lê APENAS os atributos 'data-razao' e 'data-inscricao'
+
+        // Lê os dados de Inscrição e Razão Social do CSV
         const razao = selectedOption.getAttribute('data-razao') || '';
         const inscricao = selectedOption.getAttribute('data-inscricao') || '';
-        
-        // Preenche APENAS os valores de Razão Social e Inscrição
+
+        // Preenche os campos de Inscrição e Razão
         razaoInput.value = razao;
         inscricaoInput.value = inscricao;
 
-        // Limpa os campos manuais (Mês, Ano, Código) para forçar o preenchimento
-        mesInput.value = '';
-        anoInput.value = '';
+        // --- Nova Lógica de Data/Hora ---
+        // Calcula o mês anterior e o ano corrente
+        const now = new Date();
+        // Subtrai um mês da data atual (ex: 6 Nov -> 6 Out)
+        // O objeto Date trata corretamente a mudança de ano (ex: Jan -> Dez do ano anterior)
+        now.setMonth(now.getMonth() - 1);
+
+        const targetYear = now.getFullYear();
+        // getMonth() é 0-11, por isso +1 para o formato 1-12
+        const targetMonth = now.getMonth() + 1;
+
+        // Preenche os campos de Mês e Ano (permitindo edição)
+        mesInput.value = targetMonth;
+        anoInput.value = targetYear;
+        // --- Fim da Nova Lógica de Data/Hora ---
+
+        // Limpa o Código de Serviço para preenchimento manual
         codigoServicoInput.value = '';
 
-        // Dispara a validação do formulário. O botão 'Converter'
-        // continuará desativado até que os campos manuais sejam preenchidos.
+        // Dispara a validação do formulário.
+        // O botão 'Converter' ficará desativado até o 'Código de Serviço'
+        // e o 'Arquivo' serem preenchidos.
         validateForm();
     });
     // --- FIM DA MODIFICAÇÃO ---
@@ -155,7 +167,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             const data = await response.json();
-            
+
             if (data.task_id) {
                 currentTaskId = data.task_id;
                 checkStatus(currentTaskId);
@@ -178,7 +190,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (!response.ok) {
                     throw new Error('Servidor não respondeu ao status.');
                 }
-                
+
                 const data = await response.json();
 
                 // Atualiza a barra de progresso
