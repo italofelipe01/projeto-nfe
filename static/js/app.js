@@ -109,7 +109,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // --- INÍCIO DA MODIFICAÇÃO (Lógica do Dropdown de Produção) ---
+    // --- Lógica do Dropdown de Produção ---
     configSelector.addEventListener('change', () => {
         // Pega a <option> que foi selecionada
         const selectedOption = configSelector.options[configSelector.selectedIndex];
@@ -125,28 +125,21 @@ document.addEventListener('DOMContentLoaded', () => {
         // --- Nova Lógica de Data/Hora ---
         // Calcula o mês anterior e o ano corrente
         const now = new Date();
-        // Subtrai um mês da data atual (ex: 6 Nov -> 6 Out)
-        // O objeto Date trata corretamente a mudança de ano (ex: Jan -> Dez do ano anterior)
         now.setMonth(now.getMonth() - 1);
 
         const targetYear = now.getFullYear();
-        // getMonth() é 0-11, por isso +1 para o formato 1-12
         const targetMonth = now.getMonth() + 1;
 
         // Preenche os campos de Mês e Ano (permitindo edição)
         mesInput.value = targetMonth;
         anoInput.value = targetYear;
-        // --- Fim da Nova Lógica de Data/Hora ---
 
         // Limpa o Código de Serviço para preenchimento manual
         codigoServicoInput.value = '';
 
-        // Dispara a validação do formulário.
-        // O botão 'Converter' ficará desativado até o 'Código de Serviço'
-        // e o 'Arquivo' serem preenchidos.
         validateForm();
     });
-    // --- FIM DA MODIFICAÇÃO ---
+    // --- FIM DA LÓGICA DO DROPDOWN ---
 
 
     // --- 5. Envio do Formulário (AJAX) ---
@@ -222,17 +215,31 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- 7. Exibição de Resultados (Etapa 3) ---
     function showResults(data) {
-        totalRecords.textContent = data.total_records || 0;
-        successRecords.textContent = data.success_records || 0;
-        errorRecords.textContent = data.error_records || 0;
+        
+        // --- INÍCIO DA CORREÇÃO ---
+        // O backend (Python) envia 'total', 'success' e 'errors'.
+        // O JS estava esperando 'total_records', 'success_records', etc.
+        totalRecords.textContent = data.total || 0;
+        successRecords.textContent = data.success || 0;
+        errorRecords.textContent = data.errors || 0;
 
-        if (data.error_records > 0 && data.error_details) {
-            errorsContent.textContent = data.error_details;
+        // --- MELHORIA NA EXIBIÇÃO DE ERROS ---
+        // O 'error_details' é um Array de objetos. Precisamos formatá-lo
+        // para exibição, em vez de mostrar [object Object].
+        if (data.errors > 0 && data.error_details && Array.isArray(data.error_details)) {
+            let errorString = "";
+            // Itera sobre cada item de erro retornado pelo backend
+            data.error_details.forEach(item => {
+                // Formata: "Linha X: [Erro 1, Erro 2]"
+                errorString += `Linha ${item.line}: ${item.errors.join(', ')}\n`;
+            });
+            errorsContent.textContent = errorString;
             errorsList.classList.remove('hide');
         } else {
             errorsList.classList.add('hide');
             errorsContent.textContent = '';
         }
+        // --- FIM DA CORREÇÃO E MELHORIA ---
 
         if (data.filename) {
             downloadBtn.disabled = false;
