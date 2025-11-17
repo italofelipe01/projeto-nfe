@@ -1,9 +1,3 @@
-Claro\! Com base em toda a estrutura do projeto, nas regras de negócio da documentação do ISS.net e nas correções que implementamos (como a verificação de duplicatas), preparei um `README.md` completo.
-
-Este arquivo explica o quê o projeto faz, as tecnologias que ele usa, como configurá-lo e (o mais importante) a lógica de negócio que ele implementa.
-
------
-
 # Projeto Conversor de Declarações ISS.net
 
 Este projeto é uma aplicação web Full-Stack (Python/Flask + JavaScript) projetada para resolver um problema de negócio específico: a conversão de arquivos de notas fiscais (Serviços Contratados) de formatos comuns (CSV, XLSX) para o layout de importação `.txt` específico exigido pelo sistema ISS.net.
