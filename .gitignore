@@ -7,5 +7,41 @@ venv/
 .venv/
 __pycache__/
 
-# Variáveis de ambiente
+# Variáveis de ambiente (CRÍTICO - NUNCA FAZER COMMIT)
 .env
+
+# ===== NOVOS - RPA =====
+
+# Logs do RPA
+rpa_logs/
+*.log
+
+# Screenshots (podem conter dados sensíveis)
+screenshots/
+
+# Cache do Playwright
+.playwright/
+
+# Vídeos de execução (se habilitado)
+videos/
+
+# Arquivos temporários do navegador
+*.crdownload
+*.tmp
+
+# ===== DESENVOLVIMENTO =====
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Sistema Operacional
+.DS_Store
+Thumbs.db
+
+# Pytest
+.pytest_cache/
+.coverage
+htmlcov/
