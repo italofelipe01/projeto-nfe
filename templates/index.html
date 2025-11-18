@@ -1,13 +1,15 @@
 <!DOCTYPE html>
 <html lang="pt-br">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Conversor de Declarações de Serviços</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
-    
+
     <link rel="icon" type="image/png" sizes="32x32" href="{{ url_for('static', filename='images/favicon.png') }}">
-    </head>
+</head>
+
 <body>
 
     <div class="container">
@@ -22,32 +24,33 @@
         <div id="step-1" class="step show">
             <h2>Etapa 1: Configuração e Upload</h2>
             <form id="upload-form">
-                
+
                 <div class="card">
                     <h3>Dados do Tomador (Cabeçalho)</h3>
                     <div class="form-grid">
-                        
+
                         <div class="form-group" style="grid-column: span 2;">
                             <label for="config-selector">Selecionar Configuração de Tomador</label>
-                            <select id="config-selector" name="config_selector" class="config-select"> 
+                            <select id="config-selector" name="config_selector" class="config-select">
                                 <option value="">-- Selecione uma empresa --</option>
-                                
+
                                 {% for config in configurations %}
-                                    <option value="{{ config.id }}"
-                                            data-razao="{{ config.razao_social }}"
-                                            data-inscricao="{{ config.inscricao_municipal }}">
-                                        {{ config.nome_dropdown }}
-                                    </option>
+                                <option value="{{ config.id }}" data-razao="{{ config.razao_social }}"
+                                    data-inscricao="{{ config.inscricao_municipal }}">
+                                    {{ config.nome_dropdown }}
+                                </option>
                                 {% endfor %}
                             </select>
                         </div>
                         <div class="form-group">
                             <label for="inscricao_municipal">Inscrição Municipal*</label>
-                            <input type="text" name="inscricao_municipal" id="inscricao_municipal" placeholder="Selecione uma empresa acima" required>
+                            <input type="text" name="inscricao_municipal" id="inscricao_municipal"
+                                placeholder="Selecione uma empresa acima" required>
                         </div>
                         <div class="form-group">
                             <label for="razao_social">Nome/Razão Social do Tomador*</label>
-                            <input type="text" name="razao_social" id="razao_social" placeholder="Selecione uma empresa acima" required>
+                            <input type="text" name="razao_social" id="razao_social"
+                                placeholder="Selecione uma empresa acima" required>
                         </div>
 
                         <div class="form-group">
@@ -56,11 +59,13 @@
                         </div>
                         <div class="form-group">
                             <label for="ano">Ano da Competência*</label>
-                            <input type="number" name="ano" id="ano" placeholder="Ano (AAAA)" min="2000" max="2100" required>
+                            <input type="number" name="ano" id="ano" placeholder="Ano (AAAA)" min="2000" max="2100"
+                                required>
                         </div>
                         <div class="form-group" style="grid-column: span 2;">
                             <label for="codigo_servico">Código do Serviço Contratado*</label>
-                            <input type="text" name="codigo_servico" id="codigo_servico" placeholder="Código do Serviço" required>
+                            <input type="text" name="codigo_servico" id="codigo_servico" placeholder="Código do Serviço"
+                                required>
                         </div>
                     </div>
                 </div>
@@ -88,7 +93,7 @@
                         </div>
                     </div>
                 </div>
-                
+
                 <div class="card">
                     <h3>Arquivo de Origem</h3>
                     <div class="upload-area" id="upload-area">
@@ -125,11 +130,30 @@
                     <p class="success-text">Processados com sucesso: <span id="success-records">0</span></p>
                     <p class="error-text">Com erros: <span id="error-records">0</span></p>
                 </div>
-                
+
                 <div id="download-section">
                     <button id="download-btn" class="btn-primary">
                         Baixar Arquivo TXT
                     </button>
+                </div>
+                <div id="rpa-section"
+                    style="display:none; margin-top: 20px; border-top: 1px solid #ccc; padding-top: 20px;">
+                    <h3>🤖 Automação de Envio (RPA)</h3>
+                    <p>O arquivo foi gerado. Deseja que o robô tente enviar para o ISS.net?</p>
+
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="devModeCheck">
+                        <label class="form-check-label" for="devModeCheck">
+                            Modo Desenvolvedor (Ver o robô trabalhando na tela - Headful)
+                        </label>
+                    </div>
+                    <br>
+                    <button id="btnRunRPA" class="btn btn-warning">🚀 Executar Envio Automático</button>
+
+                    <div id="rpa-logs"
+                        style="margin-top: 15px; background: #f8f9fa; padding: 10px; border-radius: 5px; display: none;">
+                        <strong>Status do Robô:</strong> <span id="rpa-status-text">Aguardando...</span>
+                    </div>
                 </div>
 
                 <div id="errors-list" class="errors hide">
@@ -147,4 +171,5 @@
 
     <script src="{{ url_for('static', filename='js/app.js') }}"></script>
 </body>
+
 </html>

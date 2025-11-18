@@ -280,3 +280,54 @@ document.addEventListener('DOMContentLoaded', () => {
         progressDetails.textContent = '';
     }
 });
+
+// Função chamada quando o download (conversão) é concluído com sucesso
+function onConversionSuccess(filename) {
+    // Mostra a seção RPA
+    document.getElementById('rpa-section').style.display = 'block';
+    
+    document.getElementById('btnRunRPA').onclick = function() {
+        const isDev = document.getElementById('devModeCheck').checked;
+        runRPA(filename, isDev ? 'dev' : 'prod');
+    };
+}
+
+function runRPA(filename, mode) {
+    const statusSpan = document.getElementById('rpa-status-text');
+    const logsDiv = document.getElementById('rpa-logs');
+    
+    logsDiv.style.display = 'block';
+    statusSpan.innerText = "⏳ Inicializando robô... Por favor, aguarde (não feche esta janela).";
+    statusSpan.className = "text-info";
+    
+    // Desabilita botão para evitar duplo clique
+    document.getElementById('btnRunRPA').disabled = true;
+
+    fetch('/rpa/execute', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ 
+            filename: filename,
+            mode: mode 
+        }),
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            statusSpan.innerText = "✅ " + data.message;
+            statusSpan.className = "text-success";
+        } else {
+            statusSpan.innerText = "❌ Erro: " + data.message + (data.details ? " (" + data.details + ")" : "");
+            statusSpan.className = "text-danger";
+        }
+        document.getElementById('btnRunRPA').disabled = false;
+    })
+    .catch((error) => {
+        console.error('Error:', error);
+        statusSpan.innerText = "❌ Erro de comunicação com o servidor.";
+        statusSpan.className = "text-danger";
+        document.getElementById('btnRunRPA').disabled = false;
+    });
+}

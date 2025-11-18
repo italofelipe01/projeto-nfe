@@ -9,15 +9,9 @@ from werkzeug.utils import secure_filename
 
 # Importa as configurações (UPLOADS_DIR, DOWNLOADS_DIR, etc.)
 from app.config import UPLOADS_DIR, DOWNLOADS_DIR, ALLOWED_EXTENSIONS, PROJECT_ROOT
-
-# --- ATUALIZAÇÃO ---
-# Removemos o bloco 'try...except' e a função placeholder.
-# Agora, importamos 'process_conversion' diretamente.
-# Se esta importação falhar (ex: porque 'app/transformers.py' não foi criado),
-# a aplicação irá falhar na inicialização, o que é o comportamento
-# correto para nos avisar que um módulo essencial está faltando.
 from app.converter import process_conversion
-# --- FIM DA ATUALIZAÇÃO ---
+from flask import jsonify, request
+from rpa.bot_controller import run_rpa_process
 
 
 # --- Configuração da Aplicação Flask ---
@@ -42,6 +36,28 @@ os.makedirs(DOWNLOADS_DIR, exist_ok=True)
 # Conforme 'arquitetura_projeto.pdf'.
 conversions = {}
 
+
+@app.route('/rpa/execute', methods=['POST'])
+def execute_rpa():
+    data = request.json
+    filename = data.get('filename')
+    mode = data.get('mode') # 'dev' ou 'prod'
+    
+    if not filename:
+        return jsonify({'success': False, 'message': 'Nome do arquivo não fornecido.'}), 400
+        
+    # Caminho completo do arquivo (assumindo que está na pasta de downloads/processados)
+    file_path = os.path.join(app.config['DOWNLOAD_FOLDER'], filename)
+    
+    is_dev = (mode == 'dev')
+    
+    # Executa o RPA (Isso bloqueia a thread. Idealmente usar Celery/Redis Queue para produção real, 
+    # mas para este escopo, threading ou execução direta serve).
+    try:
+        result = run_rpa_process(file_path, is_dev_mode=is_dev)
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)}), 500
 # --- Carregamento de Configurações ---
 
 def load_configurations():
@@ -195,3 +211,5 @@ def download_file(filename):
 # --- Ponto de Entrada (para rodar com 'python app/main.py') ---
 if __name__ == '__main__':
     app.run(debug=True)
+    
+    
