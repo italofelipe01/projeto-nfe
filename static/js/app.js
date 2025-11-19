@@ -28,6 +28,13 @@ document.addEventListener('DOMContentLoaded', () => {
     const downloadBtn = document.getElementById('download-btn');
     const newConversionBtn = document.getElementById('new-conversion-btn');
 
+    // --- NOVOS SELETORES DO RPA ---
+    const rpaSection = document.getElementById('rpa-section');
+    const btnRunRPA = document.getElementById('btnRunRPA');
+    const rpaStatusText = document.getElementById('rpa-status-text');
+    const rpaLogs = document.getElementById('rpa-logs');
+    const devModeCheck = document.getElementById('devModeCheck');
+
     // Seletores dos campos do formulário
     const configSelector = document.getElementById('config-selector');
     const inscricaoInput = document.getElementById('inscricao_municipal');
@@ -53,7 +60,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- 3. Validação de Formulário (Etapa 1) ---
     function validateForm() {
-        // Esta função verifica TODOS os inputs com 'required'
         const requiredInputs = uploadForm.querySelectorAll('input[required]');
         let allValid = true;
 
@@ -70,7 +76,6 @@ document.addEventListener('DOMContentLoaded', () => {
         convertBtn.disabled = !allValid;
     }
 
-    // Adiciona ouvintes de evento para validar em tempo real
     uploadForm.addEventListener('input', validateForm);
     fileInput.addEventListener('change', () => {
         if (fileInput.files.length > 0) {
@@ -111,36 +116,24 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- Lógica do Dropdown de Produção ---
     configSelector.addEventListener('change', () => {
-        // Pega a <option> que foi selecionada
         const selectedOption = configSelector.options[configSelector.selectedIndex];
-
-        // Lê os dados de Inscrição e Razão Social do CSV
         const razao = selectedOption.getAttribute('data-razao') || '';
         const inscricao = selectedOption.getAttribute('data-inscricao') || '';
 
-        // Preenche os campos de Inscrição e Razão
         razaoInput.value = razao;
         inscricaoInput.value = inscricao;
 
-        // --- Nova Lógica de Data/Hora ---
-        // Calcula o mês anterior e o ano corrente
         const now = new Date();
         now.setMonth(now.getMonth() - 1);
-
         const targetYear = now.getFullYear();
         const targetMonth = now.getMonth() + 1;
 
-        // Preenche os campos de Mês e Ano (permitindo edição)
         mesInput.value = targetMonth;
         anoInput.value = targetYear;
-
-        // Limpa o Código de Serviço para preenchimento manual
         codigoServicoInput.value = '';
 
         validateForm();
     });
-    // --- FIM DA LÓGICA DO DROPDOWN ---
-
 
     // --- 5. Envio do Formulário (AJAX) ---
     uploadForm.addEventListener('submit', async (e) => {
@@ -180,13 +173,10 @@ document.addEventListener('DOMContentLoaded', () => {
         const interval = setInterval(async () => {
             try {
                 const response = await fetch(`/status/${taskId}`);
-                if (!response.ok) {
-                    throw new Error('Servidor não respondeu ao status.');
-                }
+                if (!response.ok) throw new Error('Servidor não respondeu ao status.');
 
                 const data = await response.json();
 
-                // Atualiza a barra de progresso
                 progressFill.style.width = data.progress + '%';
                 progressText.textContent = data.progress + '%';
                 statusMessage.textContent = data.message;
@@ -195,6 +185,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (data.status === 'completed') {
                     clearInterval(interval);
                     showResults(data);
+                    
+                    // --- GATILHO PARA RPA ---
+                    // Se a conversão foi um sucesso, preparamos a área do robô
+                    // usando os metadados salvos pelo backend (filename e inscricao)
+                    if (data.success > 0) {
+                        prepareRPA(data.filename, data.meta_inscricao);
+                    }
+                    
                     showStep(3);
                 }
 
@@ -213,24 +211,15 @@ document.addEventListener('DOMContentLoaded', () => {
         }, 1000);
     }
 
-    // --- 7. Exibição de Resultados (Etapa 3) ---
+    // --- 7. Exibição de Resultados ---
     function showResults(data) {
-        
-        // --- INÍCIO DA CORREÇÃO ---
-        // O backend (Python) envia 'total', 'success' e 'errors'.
-        // O JS estava esperando 'total_records', 'success_records', etc.
         totalRecords.textContent = data.total || 0;
         successRecords.textContent = data.success || 0;
         errorRecords.textContent = data.errors || 0;
 
-        // --- MELHORIA NA EXIBIÇÃO DE ERROS ---
-        // O 'error_details' é um Array de objetos. Precisamos formatá-lo
-        // para exibição, em vez de mostrar [object Object].
         if (data.errors > 0 && data.error_details && Array.isArray(data.error_details)) {
             let errorString = "";
-            // Itera sobre cada item de erro retornado pelo backend
             data.error_details.forEach(item => {
-                // Formata: "Linha X: [Erro 1, Erro 2]"
                 errorString += `Linha ${item.line}: ${item.errors.join(', ')}\n`;
             });
             errorsContent.textContent = errorString;
@@ -239,7 +228,6 @@ document.addEventListener('DOMContentLoaded', () => {
             errorsList.classList.add('hide');
             errorsContent.textContent = '';
         }
-        // --- FIM DA CORREÇÃO E MELHORIA ---
 
         if (data.filename) {
             downloadBtn.disabled = false;
@@ -251,7 +239,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    // Função para mostrar erro crítico na Etapa 3
     function showError(message) {
         totalRecords.textContent = '0';
         successRecords.textContent = '0';
@@ -259,20 +246,90 @@ document.addEventListener('DOMContentLoaded', () => {
         errorsContent.textContent = `Erro Crítico: ${message}`;
         errorsList.classList.remove('hide');
         downloadBtn.disabled = true;
+        // Esconde RPA em caso de erro fatal
+        rpaSection.style.display = 'none';
     }
 
-    // --- 8. Botão "Nova Conversão" ---
+    // --- 8. LÓGICA DO RPA (NOVO MÓDULO) ---
+    function prepareRPA(filename, inscricao) {
+        // Mostra a seção
+        rpaSection.style.display = 'block';
+        rpaLogs.style.display = 'none';
+        btnRunRPA.disabled = false;
+        
+        // Remove listeners antigos clonando o botão (previne múltiplos cliques acumulados)
+        const newBtn = btnRunRPA.cloneNode(true);
+        btnRunRPA.parentNode.replaceChild(newBtn, btnRunRPA);
+        
+        // Adiciona o novo listener com os dados frescos (closure)
+        newBtn.addEventListener('click', () => {
+            executeRobot(filename, inscricao);
+        });
+    }
+
+    async function executeRobot(filename, inscricao) {
+        const isDev = devModeCheck.checked;
+        const statusSpan = rpaStatusText;
+        const logsDiv = rpaLogs;
+
+        // UI Feedback inicial
+        logsDiv.style.display = 'block';
+        statusSpan.innerText = "⏳ Inicializando robô... Por favor, aguarde (não feche a janela).";
+        statusSpan.className = "text-info";
+        
+        // Desabilita botão
+        document.getElementById('btnRunRPA').disabled = true; // Re-seleciona o botão atualizado do DOM
+
+        try {
+            const response = await fetch('/rpa/execute', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ 
+                    filename: filename,
+                    inscricao_municipal: inscricao, // O CAMPO CRÍTICO QUE FALTAVA
+                    mode: isDev ? 'dev' : 'prod'
+                }),
+            });
+
+            const data = await response.json();
+
+            if (response.ok && data.success) {
+                statusSpan.innerText = "✅ " + data.message;
+                statusSpan.className = "text-success";
+            } else {
+                // Tratamento de erro vindo da API (ex: erro de login)
+                const errorMsg = data.message || "Erro desconhecido";
+                const details = data.details ? ` (${data.details})` : "";
+                statusSpan.innerText = "❌ " + errorMsg + details;
+                statusSpan.className = "text-danger";
+            }
+
+        } catch (error) {
+            console.error('RPA Error:', error);
+            statusSpan.innerText = "❌ Erro de comunicação com o servidor RPA.";
+            statusSpan.className = "text-danger";
+        } finally {
+            // Reabilita o botão para permitir nova tentativa
+            document.getElementById('btnRunRPA').disabled = false;
+        }
+    }
+
+    // --- 9. Botão "Nova Conversão" ---
     newConversionBtn.addEventListener('click', () => {
         uploadForm.reset();
         fileNamePreview.textContent = '';
         fileLabel.textContent = "Clique ou arraste o arquivo (.csv ou .xlsx) aqui";
         convertBtn.disabled = true;
         currentTaskId = null;
+        
+        // Reseta UI do RPA
+        rpaSection.style.display = 'none';
+        rpaLogs.style.display = 'none';
+        
         resetProgress();
         showStep(1);
     });
 
-    // Função para resetar a barra de progresso
     function resetProgress() {
         statusMessage.textContent = 'Iniciando conversão...';
         progressFill.style.width = '0%';
@@ -280,54 +337,3 @@ document.addEventListener('DOMContentLoaded', () => {
         progressDetails.textContent = '';
     }
 });
-
-// Função chamada quando o download (conversão) é concluído com sucesso
-function onConversionSuccess(filename) {
-    // Mostra a seção RPA
-    document.getElementById('rpa-section').style.display = 'block';
-    
-    document.getElementById('btnRunRPA').onclick = function() {
-        const isDev = document.getElementById('devModeCheck').checked;
-        runRPA(filename, isDev ? 'dev' : 'prod');
-    };
-}
-
-function runRPA(filename, mode) {
-    const statusSpan = document.getElementById('rpa-status-text');
-    const logsDiv = document.getElementById('rpa-logs');
-    
-    logsDiv.style.display = 'block';
-    statusSpan.innerText = "⏳ Inicializando robô... Por favor, aguarde (não feche esta janela).";
-    statusSpan.className = "text-info";
-    
-    // Desabilita botão para evitar duplo clique
-    document.getElementById('btnRunRPA').disabled = true;
-
-    fetch('/rpa/execute', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ 
-            filename: filename,
-            mode: mode 
-        }),
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data.success) {
-            statusSpan.innerText = "✅ " + data.message;
-            statusSpan.className = "text-success";
-        } else {
-            statusSpan.innerText = "❌ Erro: " + data.message + (data.details ? " (" + data.details + ")" : "");
-            statusSpan.className = "text-danger";
-        }
-        document.getElementById('btnRunRPA').disabled = false;
-    })
-    .catch((error) => {
-        console.error('Error:', error);
-        statusSpan.innerText = "❌ Erro de comunicação com o servidor.";
-        statusSpan.className = "text-danger";
-        document.getElementById('btnRunRPA').disabled = false;
-    });
-}

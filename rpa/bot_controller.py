@@ -1,100 +1,117 @@
-from playwright.sync_api import sync_playwright
-from rpa.config_rpa import RPAConfig
-from rpa.utils import setup_logger, save_screenshot
+# -*- coding: utf-8 -*-
+"""
+Controlador Principal do Robô (rpa/bot_controller.py).
+
+Responsabilidade:
+1. Orquestrar o ciclo de vida do navegador (Launch/Close).
+2. Instanciar e coordenar os módulos especialistas (Login, Navegação, Upload).
+3. Gerir sessões, contextos e tratamento de erros de alto nível.
+
+Arquitetura: Padrão Facade/Controller.
+"""
+
 import os
+from playwright.sync_api import sync_playwright
+from rpa.config_rpa import CREDENTIALS, BROWSER_CONFIG, DEFAULT_TIMEOUT
+from rpa.utils import setup_logger
+
+# Importação dos módulos especialistas
+from rpa.authentication import ISSAuthenticator
+from rpa.portal_navigator import ISSNavigator
+from rpa.file_uploader import ISSUploader
+from rpa.result_parser import ISSResultParser
 
 logger = setup_logger()
 
-def run_rpa_process(file_path, is_dev_mode=False):
-    """
-    Executa o fluxo completo de RPA.
-    
-    Args:
-        file_path (str): Caminho absoluto do arquivo .txt a ser enviado.
-        is_dev_mode (bool): Se True, abre o navegador visível (headful).
-    
-    Returns:
-        dict: Resultado da operação {'success': bool, 'message': str, 'details': str}
-    """
-    logger.info(f"Iniciando RPA. Modo Dev: {is_dev_mode}. Arquivo: {file_path}")
-    
-    if not os.path.exists(file_path):
-        logger.error("Arquivo não encontrado para upload.")
-        return {'success': False, 'message': "Arquivo TXT não encontrado no servidor."}
+class ISSBot:
+    def __init__(self, task_id: str, is_dev_mode: bool = False):
+        self.task_id = task_id
+        self.is_dev_mode = is_dev_mode
+        self.browser = None
+        self.context = None
+        self.page = None
 
-    with sync_playwright() as p:
-        # Configuração do Browser
-        browser = p.chromium.launch(
-            headless=not is_dev_mode, # Se dev_mode=True, headless=False
-            slow_mo=500 if is_dev_mode else 0 # Adiciona delay em dev para visualização
-        )
-        context = browser.new_context(record_video_dir="rpa_logs/videos" if is_dev_mode else None)
-        page = context.new_page()
+    def execute(self, file_path: str, inscricao_municipal: str) -> dict:
+        """
+        Executa o fluxo completo de automação.
+        
+        Args:
+            file_path (str): Caminho absoluto do arquivo TXT a ser enviado.
+            inscricao_municipal (str): Inscrição da empresa para login/seleção.
+            
+        Returns:
+            dict: Resultado padronizado {'success': bool, 'message': str, ...}
+        """
+        logger.info(f"[{self.task_id}] 🚀 Iniciando execução do Robô para IM: {inscricao_municipal}")
 
+        # 1. Recuperação de Credenciais
+        # Busca no dicionário carregado do .env em config_rpa.py
+        creds = CREDENTIALS.get(str(inscricao_municipal))
+        if not creds:
+            msg = f"Credenciais não encontradas para a inscrição {inscricao_municipal}. Verifique o .env."
+            logger.error(f"[{self.task_id}] {msg}")
+            return {'success': False, 'message': msg}
+
+        playwright = None
         try:
-            # --- 1. Login ---
-            logger.info("Navegando para página de login...")
-            page.goto(RPAConfig.URL_LOGIN)
+            playwright = sync_playwright().start()
             
-            logger.info("Preenchendo credenciais...")
-            page.fill(RPAConfig.SELECTOR_USER, RPAConfig.USER)
-            page.fill(RPAConfig.SELECTOR_PASS, RPAConfig.PASSWORD)
-            page.click(RPAConfig.SELECTOR_BTN_LOGIN)
+            # 2. Configuração do Browser
+            # Ajusta headless dinamicamente se estiver em modo dev ou produção
+            launch_config = BROWSER_CONFIG.copy()
+            if self.is_dev_mode:
+                launch_config['headless'] = False
             
-            # Checkpoint: Verificar se login funcionou
-            # Sugestão: Esperar por um elemento que só existe logado (ex: Menu Sair ou Nome da Empresa)
-            try:
-                page.wait_for_url("**/Default.aspx", timeout=10000) # Exemplo de URL pós login
-                logger.info("Login realizado com sucesso.")
-            except:
-                logger.warning("URL não mudou conforme esperado, verificando erro de login.")
-                if page.locator(".erro-login").is_visible(): # Exemplo seletor erro
-                    raise Exception("Usuário ou senha inválidos.")
+            self.browser = playwright.chromium.launch(**launch_config)
+            
+            # Cria contexto com vídeo se necessário (opcional para debug)
+            self.context = self.browser.new_context(
+                record_video_dir=f"rpa_logs/videos/{self.task_id}" if self.is_dev_mode else None,
+                viewport={'width': 1280, 'height': 720}
+            )
+            self.page = self.context.new_page()
+            self.page.set_default_timeout(DEFAULT_TIMEOUT)
 
-            # --- 2. Navegação até Importação ---
-            logger.info("Navegando para menu de importação...")
-            # Aqui você deve implementar a sequência de cliques ou goto direto
-            # page.click(RPAConfig.SELECTOR_MENU_DECLARACOES)
-            # page.click(RPAConfig.SELECTOR_SUBMENU_SERVICOS)
-            
-            # --- 3. Upload ---
-            logger.info("Iniciando upload do arquivo...")
-            # Espera o input de arquivo aparecer
-            page.wait_for_selector(RPAConfig.SELECTOR_INPUT_FILE)
-            
-            # Define o arquivo no input
-            page.set_input_files(RPAConfig.SELECTOR_INPUT_FILE, file_path)
-            
-            # Configurações adicionais (checkboxes, selects)
-            # page.check(RPAConfig.SELECTOR_CHECK_DIGITO)
-            
-            # Clica em Enviar/Importar
-            page.click(RPAConfig.SELECTOR_BTN_ENVIAR)
-            
-            # --- 4. Captura de Resultado ---
-            logger.info("Aguardando processamento...")
-            
-            # Espera aparecer sucesso OU erro. Promise.race pode ser usado, 
-            # ou espera genérica se o elemento de mensagem for o mesmo.
-            page.wait_for_selector(f"{RPAConfig.SELECTOR_MSG_SUCESSO}, {RPAConfig.SELECTOR_MSG_ERRO}")
-            
-            if page.locator(RPAConfig.SELECTOR_MSG_SUCESSO).is_visible():
-                msg = page.inner_text(RPAConfig.SELECTOR_MSG_SUCESSO)
-                logger.info(f"Sucesso: {msg}")
-                save_screenshot(page, "success")
-                return {'success': True, 'message': msg}
-            else:
-                err = page.inner_text(RPAConfig.SELECTOR_MSG_ERRO)
-                logger.error(f"Erro no portal: {err}")
-                save_screenshot(page, "portal_error")
-                return {'success': False, 'message': "O portal retornou erro.", 'details': err}
+            # --- FASE 1: LOGIN ---
+            auth = ISSAuthenticator(self.page, self.task_id)
+            if not auth.login(creds['user'], creds['pass']):
+                raise Exception("Falha na etapa de autenticação.")
+
+            # --- FASE 2: SELEÇÃO DE CONTEXTO ---
+            nav = ISSNavigator(self.page, self.task_id)
+            nav.selecionar_empresa(creds['inscricao'])
+
+            # --- FASE 3: UPLOAD ---
+            uploader = ISSUploader(self.page, self.task_id)
+            uploader.upload_file(file_path)
+
+            # --- FASE 4: RESULTADOS ---
+            parser = ISSResultParser(self.page, self.task_id)
+            resultado = parser.parse()
+
+            return resultado
 
         except Exception as e:
-            logger.exception("Exceção crítica durante execução do RPA")
-            save_screenshot(page, "exception")
-            return {'success': False, 'message': f"Erro interno do Robô: {str(e)}"}
+            logger.exception(f"[{self.task_id}] 💥 Erro fatal durante execução")
+            
+            return {
+                'success': False, 
+                'message': f"Erro técnico no processamento: {str(e)}",
+                'details': "Consulte os logs técnicos para mais informações."
+            }
             
         finally:
-            logger.info("Fechando navegador.")
-            context.close()
-            browser.close()
+            # Garante limpeza de recursos
+            logger.info(f"[{self.task_id}] Encerrando sessão do navegador.")
+            if self.context: self.context.close()
+            if self.browser: self.browser.close()
+            if playwright: playwright.stop()
+
+# --- Interface Pública (Entry Point) ---
+
+def run_rpa_process(task_id: str, file_path: str, inscricao_municipal: str, is_dev_mode: bool = False):
+    """
+    Wrapper simples para ser chamado pelo Flask (app/main.py).
+    """
+    bot = ISSBot(task_id, is_dev_mode)
+    return bot.execute(file_path, inscricao_municipal)
