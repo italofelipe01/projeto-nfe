@@ -21,7 +21,6 @@ from rpa.config_rpa import (
 from rpa.utils import (
     setup_logger,
     generate_task_id,
-    take_screenshot,
     validate_file_exists
 )
 
@@ -33,6 +32,5 @@ __all__ = [
     'get_credentials_by_inscricao',
     'setup_logger',
     'generate_task_id',
-    'take_screenshot',
     'validate_file_exists'
 ]
