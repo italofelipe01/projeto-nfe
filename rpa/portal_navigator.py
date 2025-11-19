@@ -1,114 +1,100 @@
 # -*- coding: utf-8 -*-
 """
-Módulo de Autenticação (rpa/authentication.py).
+Módulo de Navegação no Portal (rpa/portal_navigator.py).
 
 Responsabilidade:
-1. Realizar o login no portal ISS.net.
-2. Resolver o desafio do Teclado Virtual Dinâmico.
-3. Validar se o acesso foi concedido.
+1. Navegar entre as telas (menus, grids) do portal ISS.net.
+2. Selecionar a empresa correta (Contribuinte) no grid dinâmico após o login.
 """
-
-import time
 from playwright.sync_api import Page
-from rpa.config_rpa import SELECTORS, ISSNET_LOGIN_URL, DEFAULT_TIMEOUT
+from typing import Optional
+
+# CORREÇÃO CRÍTICA DO ERRO: Substituí 'ISSNET_LOGIN_URL' por 'ISSNET_URL'.
+# Importamos também o 'URLS' para as navegações diretas e 'NAVIGATION_TIMEOUT'.
+from rpa.config_rpa import SELECTORS, DEFAULT_TIMEOUT, NAVIGATION_TIMEOUT, URLS 
 from rpa.utils import setup_logger
-from rpa.error_handler import AuthenticationError
+from rpa.error_handler import NavigationError
 
 logger = setup_logger()
 
-class ISSAuthenticator:
+class ISSNavigator:
     def __init__(self, page: Page, task_id: str):
         """
-        Inicializa o autenticador com a página do navegador controlada pelo Playwright.
+        Inicializa o navegador do portal com a página do Playwright.
         
-        :param page: Objeto Page do Playwright (sessão do navegador).
+        :param page: Objeto Page do Playwright.
         :param task_id: ID da tarefa para rastreamento nos logs.
         """
         self.page = page
         self.task_id = task_id
 
-    def login(self, user: str, password: str) -> bool:
+    def select_contribuinte(self, inscricao_municipal: str) -> bool:
         """
-        Executa o fluxo completo de login.
+        Realiza a seleção do contribuinte (empresa) no grid dinâmico.
+
+        **Design Pattern: Localização Resiliente**
+        Como os IDs do grid são dinâmicos, usamos o valor do filtro e a
+        combinação de seletores (XPath ou text-based) para garantir que
+        o botão "Selecionar" seja encontrado na linha correta.
         
-        :param user: Usuário (CPF/CNPJ/Inscrição).
-        :param password: Senha numérica.
-        :return: True se o login for bem-sucedido.
-        :raises: AuthenticationError se houver erro de credencial ou bloqueio.
+        :param inscricao_municipal: A Inscrição Municipal a ser selecionada.
+        :return: True se a seleção for bem-sucedida.
+        :raises: NavigationError se a empresa não for encontrada.
         """
-        logger.info(f"[{self.task_id}] 🔐 Iniciando processo de autenticação...")
-
+        logger.info(f"[{self.task_id}] 🏢 Tentando selecionar o Contribuinte: {inscricao_municipal}")
+        
         try:
-            # 1. Navegação Inicial
-            logger.debug(f"[{self.task_id}] Navegando para: {ISSNET_LOGIN_URL}")
-            self.page.goto(ISSNET_LOGIN_URL, timeout=DEFAULT_TIMEOUT)
+            # 1. Aguarda a página de seleção de contribuinte carregar totalmente
+            input_inscricao_selector = SELECTORS['selecao_empresa']['input_inscricao']
+            self.page.wait_for_selector(input_inscricao_selector, state='visible', timeout=NAVIGATION_TIMEOUT)
+            
+            # 2. Preenche o filtro com a Inscrição Municipal e aciona o filtro
+            self.page.fill(input_inscricao_selector, inscricao_municipal)
+            btn_localizar_selector = SELECTORS['selecao_empresa']['btn_localizar']
+            self.page.click(btn_localizar_selector)
 
-            # 2. Preenchimento do Usuário
-            user_selector = SELECTORS['login']['username_input']
-            self.page.wait_for_selector(user_selector, state='visible')
-            self.page.fill(user_selector, user)
+            # 3. Localiza o botão 'Selecionar' na linha filtrada
+            # Usando XPath para encontrar o botão 'Selecionar' (com ID dinâmico) dentro da linha que contém a Inscrição.
+            # O Playwright também permite combinações de seletores mais limpas:
+            # ex: `tr:has-text("12345") >> input[type=image][id*=Selecionar]`
+            
+            # Optamos por um XPath mais genérico, que busca a linha pelo texto e o botão pela parte de seu ID e tipo.
+            btn_selecionar_locator = self.page.locator(
+                f"//tr[contains(., '{inscricao_municipal}')] //input[contains(@id, 'imbSelecionar') and contains(@type, 'image')]"
+            )
 
-            # 3. Resolução do Teclado Virtual (Senha)
-            self._resolver_teclado_virtual(password)
+            # Aguarda a visibilidade do botão para confirmar que a filtragem terminou e o elemento foi encontrado.
+            btn_selecionar_locator.wait_for(state='visible', timeout=DEFAULT_TIMEOUT)
+            btn_selecionar_locator.click()
 
-            # 4. Submissão
-            btn_submit = SELECTORS['login']['submit_button']
-            self.page.click(btn_submit)
+            # 4. Validação da Navegação
+            # Após a seleção, o sistema deve ir para a página principal (ou tela de importação)
+            # Usamos a URL de importação como ponto de verificação final para o próximo passo.
+            self.page.wait_for_url(URLS['importacao'], timeout=NAVIGATION_TIMEOUT)
 
-            # 5. Validação do Sucesso
-            try:
-                # Aguarda redirecionamento para uma URL interna logada
-                # O portal geralmente redireciona para 'SelecionarContribuinte.aspx' ou 'Principal.aspx'
-                self.page.wait_for_url("**/SelecionarContribuinte.aspx*", timeout=10000)
-                logger.info(f"[{self.task_id}] ✅ Login realizado com sucesso!")
-                return True
-            except:
-                # Se não redirecionou, verifica mensagem de erro na tela
-                error_sel = SELECTORS['login']['error_message']
-                if self.page.locator(error_sel).is_visible():
-                    erro_msg = self.page.inner_text(error_sel).strip()
-                    logger.error(f"[{self.task_id}] Login recusado pelo portal: {erro_msg}")
-                    # Lança exceção específica de negócio (não tenta novamente)
-                    raise AuthenticationError(f"Falha no login: {erro_msg}")
-                
-                logger.error(f"[{self.task_id}] Login falhou sem mensagem de erro clara (possível timeout ou captcha).")
-                raise AuthenticationError("Falha desconhecida no login (Timeout ou comportamento inesperado).")
+            logger.info(f"[{self.task_id}] ✅ Contribuinte {inscricao_municipal} selecionado com sucesso!")
+            return True
 
         except Exception as e:
-            # Se já for AuthenticationError, apenas repassa
-            if isinstance(e, AuthenticationError):
-                raise e
-            
-            # Se for outro erro (técnico), loga e repassa
-            logger.error(f"[{self.task_id}] Erro técnico na rotina de login: {str(e)}")
-            raise e
+            logger.error(f"[{self.task_id}] ❌ Falha na seleção do Contribuinte {inscricao_municipal}: {str(e)}")
+            raise NavigationError(f"Não foi possível selecionar o Contribuinte {inscricao_municipal} no grid. Detalhes: {e}")
 
-    def _resolver_teclado_virtual(self, password: str):
+    def navigate_to_import_page(self) -> None:
         """
-        Lógica para lidar com Teclado Virtual Randômico.
+        Navega diretamente para a página de importação de serviços contratados.
+        
+        **Design Pattern: Navegação Direta (Deep Link)**
+        É sempre mais seguro usar URLs diretas quando disponíveis do que simular 
+        cliques complexos em menus laterais, reduzindo a chance de falhas.
         """
-        keyboard_map = SELECTORS['login']['virtual_keyboard']
-        logger.debug(f"[{self.task_id}] Processando teclado virtual...")
-
-        for i, digit in enumerate(password):
-            clicked = False
-            
-            # Percorre botões #btn1 a #btn5
-            for btn_key, btn_selector in keyboard_map.items():
-                if btn_key == 'limpar': continue
-
-                button = self.page.locator(btn_selector)
-                if not button.is_visible(): continue
-
-                # Extrai valor "1 ou 5" do botão
-                btn_value = button.get_attribute('value') or button.inner_text()
-                
-                if digit in btn_value:
-                    button.click()
-                    clicked = True
-                    time.sleep(0.3) # Pequeno delay para o JS do site processar o clique
-                    break 
-            
-            if not clicked:
-                logger.error(f"[{self.task_id}] Teclado Virtual: Não encontrei botão para o dígito '{digit}'.")
-                raise AuthenticationError(f"Erro no teclado virtual: Dígito '{digit}' não encontrado na tela.")
+        logger.info(f"[{self.task_id}] 🧭 Navegando para a tela de Importação de Serviços...")
+        try:
+            self.page.goto(URLS['importacao'], timeout=NAVIGATION_TIMEOUT)
+            # Verifica a visibilidade do input de arquivo para garantir que a página carregou corretamente.
+            self.page.wait_for_selector(SELECTORS['importacao']['input_arquivo'], 
+                                        state='visible', 
+                                        timeout=DEFAULT_TIMEOUT)
+            logger.info(f"[{self.task_id}] ✅ Navegação para Importação concluída.")
+        except Exception as e:
+            logger.error(f"[{self.task_id}] ❌ Falha ao navegar para a página de Importação: {str(e)}")
+            raise NavigationError(f"Erro ao acessar a URL de Importação: {URLS['importacao']}. Detalhes: {e}")
