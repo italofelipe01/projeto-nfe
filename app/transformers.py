@@ -53,8 +53,11 @@ def clean_alphanumeric(value, max_len=None):
 def transform_monetary(value, decimal_separator, max_len=10):
     """
     /// Normaliza valores monetários.
-    /// Converte "R$ 1.234,56" (comma) ou "1,234.56" (point)
+    /// Converte "R$ 1.234,56" (virgula) ou "1,234.56" (ponto)
     /// para o padrão do TXT: "1234.56" (ponto decimal, 2 casas).
+    
+    /// CORREÇÃO: Agora aceita 'virgula' e 'ponto' (em português),
+    /// conforme recebido do formulário HTML e usado em validators.py.
     """
     if pd.isna(value) or value is None:
         return "0.00"
@@ -62,15 +65,18 @@ def transform_monetary(value, decimal_separator, max_len=10):
     # Remove símbolos comuns (R$) e espaços
     cleaned_str = str(value).replace('R$', '').strip()
 
-    # Inteligência para lidar com os separadores do usuário
-    if decimal_separator == 'comma':
+    # CORREÇÃO: Padronização para 'virgula' e 'ponto' (português)
+    if decimal_separator == 'virgula':
         # Formato Brasil (1.234,56)
+        # 1. Remove pontos de milhar: "1.234,56" → "1234,56"
+        # 2. Substitui vírgula decimal por ponto: "1234,56" → "1234.56"
         cleaned_str = cleaned_str.replace('.', '').replace(',', '.')
-    else:
+    else:  # decimal_separator == 'ponto'
         # Formato EUA (1,234.56)
+        # Remove apenas as vírgulas de milhar: "1,234.56" → "1234.56"
         cleaned_str = cleaned_str.replace(',', '')
 
-    # Remove qualquer outro caractere não numérico que sobrou
+    # Remove qualquer outro caractere não numérico que sobrou (ex: espaços, letras)
     cleaned_str = re.sub(r"[^0-9.]", "", cleaned_str)
 
     try:
@@ -78,7 +84,8 @@ def transform_monetary(value, decimal_separator, max_len=10):
         float_val = float(cleaned_str)
         formatted_val = f"{float_val:.2f}"
     except (ValueError, TypeError):
-        return "0.00"  # Retorna padrão em caso de erro
+        # Se a conversão falhar (ex: string vazia após limpeza), retorna padrão
+        return "0.00"
 
     return formatted_val
 
@@ -87,15 +94,20 @@ def transform_aliquota(value, decimal_separator, max_len=3):
     """
     /// Normaliza a alíquota (ex: "5" ou "2,5").
     /// Padroniza para "X.X" (ex: "5.0"), conforme 'modelo.txt'.
+    
+    /// CORREÇÃO: Agora aceita 'virgula' e 'ponto' (em português).
     """
     if pd.isna(value) or value is None:
         return "0.0"
 
     cleaned_str = str(value).strip()
 
-    if decimal_separator == 'comma':
+    # CORREÇÃO: Padronização para 'virgula' e 'ponto' (português)
+    if decimal_separator == 'virgula':
+        # Substitui vírgula por ponto para normalizar
         cleaned_str = cleaned_str.replace(',', '.')
 
+    # Remove caracteres não numéricos (exceto ponto decimal)
     cleaned_str = re.sub(r"[^0-9.]", "", cleaned_str)
 
     try:
@@ -107,7 +119,7 @@ def transform_aliquota(value, decimal_separator, max_len=3):
     
     # Lógica para respeitar os 3 chars (ex: 10.0 tem 4)
     if len(formatted_val) > max_len and float_val < 10:
-        return formatted_val[:max_len] # "5.0"
+        return formatted_val[:max_len]  # "5.0"
     elif float_val >= 10:
         # Se for "10.0" ou "100.0", retorna só o inteiro "10" ou "100"
         return str(int(float_val))
