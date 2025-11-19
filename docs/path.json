@@ -1,0 +1,102 @@
+{
+  "DeclaracaoServicosContratados": {
+    "title": "Declaração de Serviços Contratados",
+    "items": {
+      "Incluir": "https://www.issnetonline.com.br/goiania/online/Servicos_Contratados/novaDeclaracaoServContratados.aspx",
+      "ConsultarRetificar": "https://www.issnetonline.com.br/goiania/online/Servicos_Contratados/novaDeclaracaoServContratados.aspx?consulta=true",
+      "ConsultaNotasTomadas": "https://www.issnetonline.com.br/goiania/online/NotaDigital/ConsultaNotaTomador.aspx",
+      "ImportacaoDaDeclaracao": {
+        "Incluir": "https://www.issnetonline.com.br/goiania/online/Servicos_Contratados/ImportacaoServicosContratados.aspx",
+        "Consultar": "https://www.issnetonline.com.br/goiania/online/Servicos_Contratados/ConsultaImportacaoServicosContratados.aspx"
+      }
+    }
+  },
+  "SolicitacaoDocumentosFiscais": {
+    "title": "Solicitação de Documentos Fiscais",
+    "items": {
+      "Solicitacao": "https://www.issnetonline.com.br/goiania/online/sedofis/solicitacaoSedofis.aspx",
+      "Consultar": "https://www.issnetonline.com.br/goiania/online/sedofis/consultarSedofis.aspx",
+      "DocumentosNaoDeclarados": "https://www.issnetonline.com.br/goiania/online/Servicos_Prestados/DocumentosNaoDeclarados.aspx"
+    }
+  },
+  "GuiasDeRecolhimento": {
+    "title": "Guias de Recolhimento",
+    "items": {
+      "EmissaoDeGuia": "https://www.issnetonline.com.br/goiania/online/fechamento/emissao_guia_fechamento_novo.aspx",
+      "ReemissaoDeGuia": "https://www.issnetonline.com.br/goiania/online/fechamento/reemissao_guiaFechamento.aspx",
+      "AgendamentoEmissao": {
+        "Incluir": "https://www.issnetonline.com.br/goiania/online/fechamento/AgendamentoEmissaoGuiaInclusao.aspx",
+        "Consultar": "https://www.issnetonline.com.br/goiania/online/fechamento/AgendamentoEmissaoGuiaConsulta.aspx"
+      }
+    }
+  },
+  "LivroFiscal": {
+    "title": "Livro Fiscal",
+    "items": {
+      "EmitirLivroFiscal": "https://www.issnetonline.com.br/goiania/online/LivroFiscal/EmissaoLivroFiscal.aspx"
+    }
+  },
+  "OutrasOpcoes": {
+    "title": "Outras Opções",
+    "items": {
+      "AlterarSenha": "https://www.issnetonline.com.br/goiania/online/default/alterar_senha.aspx",
+      "InformarDocumentosFiscais": "https://www.issnetonline.com.br/goiania/online/sedofis/informar_documentosSedofis.aspx",
+      "AlterarLogomarca": "https://www.issnetonline.com.br/goiania/online/Logomarca/Contribuinte_Logo.aspx",
+      "Permissoes": "https://www.issnetonline.com.br/goiania/online/Permissoes/Permissoes.aspx",
+      "ImprimirFichaCadastral": "https://www.issnetonline.com.br/goiania/online/Contribuinte/ImprimirFichaCadastral.aspx",
+      "AtualizarEnderecoCorrespondencia": "https://www.issnetonline.com.br/goiania/online/Contribuinte/Contribuinte_CadastroGeral.aspx",
+      "AtualizarEnderecoUsuario": "https://www.issnetonline.com.br/goiania/online/Pessoas/CadastroPreliminar.aspx",
+      "Pendencias": "https://www.issnetonline.com.br/goiania/online/Pendencias/Pendencias.aspx",
+      "GerarNaoMovimentoLote": "https://www.issnetonline.com.br/goiania/online/Fechamento/emissao_nao_movimento_lote.aspx",
+      "ConsultaPrestadores": "https://www.issnetonline.com.br/goiania/online/Contribuinte/ConsultaPrestadores.aspx",
+      "CadastroDeObra": "https://www.issnetonline.com.br/goiania/online/Obras/SolicitacaoCadastroObras.aspx",
+      "RelatorioDeDeclaracoes": "https://www.issnetonline.com.br/goiania/online/fechamento/relFechamento.aspx",
+      "AliquotasTributosFederais": "https://www.issnetonline.com.br/goiania/online/Aliquotas/AliquotasFederais.aspx",
+      "Graficas": {
+        "AidfsAbertas": "https://www.issnetonline.com.br/goiania/online/grafica/aidfaberta.aspx",
+        "ConsultarAidfs": "https://www.issnetonline.com.br/goiania/online/grafica/consultaaidf.aspx"
+      }
+    }
+  },
+  "Extrato": {
+    "title": "Extrato",
+    "items": {
+      "VisualizarExtrato": "https://www.issnetonline.com.br/goiania/online/fechamento/extratoFechamento.aspx"
+    }
+  },
+  "NotaEletronica": {
+    "title": "Nota Eletrônica",
+    "items": {
+      "NovaNotaEletronica": null,
+      "ConsultarNotaEletronica": "https://www.issnetonline.com.br/goiania/online/NotaDigital/Consulta_Nota.aspx",
+      "ConsultarSolicitacoesCancelamento": "https://www.issnetonline.com.br/goiania/online/NotaDigital/consulta_cancelamento.aspx",
+      "SolicitacaoNotasLote": {
+        "Incluir": "https://www.issnetonline.com.br/goiania/online/NotaDigital/SolicitacaoLoteInclusao.aspx",
+        "Consultar": "https://www.issnetonline.com.br/goiania/online/NotaDigital/SolicitacaoLoteConsulta.aspx"
+      }
+    }
+  },
+  "RecusaISSQN": {
+    "title": "Recusa ISSQN Notas Tomadas",
+    "items": {
+      "GerarSolicitacaoRecusa": "https://www.issnetonline.com.br/goiania/online/NotaDigital/ConsultaNotaRecusaIssqn.aspx",
+      "ConsultarRecurso": "https://www.issnetonline.com.br/goiania/online/NotaDigital/ConsultaSolicitacaoRecusaIssqn.aspx"
+    }
+  },
+  "RecursoServicosPrestados": {
+    "title": "Recurso dos Serv. Prestados",
+    "items": {
+      "GerarRecursoRecusa": "https://www.issnetonline.com.br/goiania/online/NotaDigital/ConsultaRecusaTomadorServPrestados.aspx",
+      "ConsultarRecurso": "https://www.issnetonline.com.br/goiania/online/NotaDigital/ConsultaRecursoServicoPrestado.aspx"
+    }
+  },
+  "Ajuda": {
+    "title": "Ajuda",
+    "items": {
+      "AjudaOnline": "https://www.notacontrol.com.br/static-issnetonline/ajuda/html/ajuda_introducao.html",
+      "ManualDownload": "https://www.notacontrol.com.br/static-issnetonline/ajuda/Docs/ManualISSnetOnline.pdf",
+      "Sobre": "https://www.issnetonline.com.br/goiania/online/Versao.aspx",
+      "TiposDocumentosFiscais": "https://www.issnetonline.com.br/goiania/online/Ajuda/TiposDocumentosFiscais.aspx"
+    }
+  }
+}
