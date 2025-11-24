@@ -19,8 +19,19 @@ class ISSBot:
         self.context: Optional[BrowserContext] = None
         self.page: Optional[Page] = None
 
-    def execute(self, file_path: str, inscricao_municipal: str) -> dict:
+    def execute(
+        self,
+        file_path: str,
+        inscricao_municipal: str,
+        status_callback=None,
+    ) -> dict:
+        """
+        Executa o fluxo RPA completo.
+        :param status_callback: Função opcional (fn(msg)) para reportar progresso.
+        """
         logger.info(f"[{self.task_id}] Iniciando Robô. IM: {inscricao_municipal}")
+        if status_callback:
+            status_callback("Iniciando Robô...")
 
         creds = CREDENTIALS.get(str(inscricao_municipal))
         if not creds:
@@ -49,6 +60,9 @@ class ISSBot:
             self.page.set_default_timeout(DEFAULT_TIMEOUT)
 
             # FASE 1: LOGIN
+            if status_callback:
+                status_callback("Realizando Login...")
+
             user = creds.get("user")
             password = creds.get("pass")
             inscricao = creds.get("inscricao")
@@ -63,16 +77,28 @@ class ISSBot:
                 raise Exception("Falha na etapa de autenticação.")
 
             # FASE 2: SELEÇÃO DE EMPRESA
+            if status_callback:
+                status_callback("Selecionando Empresa...")
+
             nav = ISSNavigator(self.page, self.task_id)
             nav.select_contribuinte(inscricao)
 
             # FASE 3: UPLOAD
+            if status_callback:
+                status_callback("Enviando Arquivo...")
+
             uploader = ISSUploader(self.page, self.task_id)
             uploader.upload_file(file_path)
 
             # FASE 4: RESULTADOS
+            if status_callback:
+                status_callback("Lendo Resultados...")
+
             parser = ISSResultParser(self.page, self.task_id)
             resultado = parser.parse()
+
+            if status_callback:
+                status_callback("Concluído.")
 
             return resultado
 
@@ -95,7 +121,11 @@ class ISSBot:
 
 
 def run_rpa_process(
-    task_id: str, file_path: str, inscricao_municipal: str, is_dev_mode: bool = False
+    task_id: str,
+    file_path: str,
+    inscricao_municipal: str,
+    is_dev_mode: bool = False,
+    status_callback=None,
 ):
     bot = ISSBot(task_id, is_dev_mode)
-    return bot.execute(file_path, inscricao_municipal)
+    return bot.execute(file_path, inscricao_municipal, status_callback)
