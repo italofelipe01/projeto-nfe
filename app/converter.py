@@ -397,6 +397,7 @@ def process_conversion(task_id, file_path, form_data, update_status_callback):
             success=success_count,
             errors=error_count,
             error_details=error_details,
+            meta_inscricao=form_data.get("inscricao_municipal"),
         )
 
     except Exception as e:
