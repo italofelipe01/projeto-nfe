@@ -14,6 +14,7 @@ from rpa.utils import setup_logger
 
 logger = setup_logger()
 
+
 class ISSUploader:
     def __init__(self, page: Page, task_id: str):
         self.page = page
@@ -26,33 +27,37 @@ class ISSUploader:
         logger.info(f"[{self.task_id}] 📤 Preparando upload do arquivo: {file_path}")
 
         try:
-            sels = SELECTORS['importacao']
+            sels = SELECTORS["importacao"]
 
             # 1. Configuração de Pré-requisitos (Checkbox Separador)
-            if self.page.locator(sels['chk_separador']).is_visible():
-                self.page.check(sels['chk_separador'])
+            if self.page.locator(sels["chk_separador"]).is_visible():
+                self.page.check(sels["chk_separador"])
                 logger.debug(f"[{self.task_id}] Checkbox 'Separador Ponto' marcado.")
 
             # 2. Injeção do Arquivo (Input Hidden)
-            self.page.set_input_files(sels['input_arquivo'], str(file_path))
+            self.page.set_input_files(sels["input_arquivo"], str(file_path))
             logger.debug(f"[{self.task_id}] Arquivo injetado no input hidden.")
 
             # 3. Disparo do Envio
-            self.page.click(sels['btn_importar'])
+            self.page.click(sels["btn_importar"])
             logger.info(f"[{self.task_id}] Botão 'Importar' clicado.")
 
             # 4. Sincronização de Carregamento (Crítico)
-            loading_sel = sels['loading_overlay']
-            
+            loading_sel = sels["loading_overlay"]
+
             try:
                 # Fase A: Espera o loading APARECER
-                self.page.wait_for_selector(loading_sel, state='visible', timeout=5000)
+                self.page.wait_for_selector(loading_sel, state="visible", timeout=5000)
                 logger.debug(f"[{self.task_id}] Overlay de carregamento detectado.")
             except PlaywrightTimeout:
-                logger.warning(f"[{self.task_id}] Overlay de loading não apareceu (pode ter sido muito rápido).")
+                logger.warning(
+                    f"[{self.task_id}] Overlay de loading não apareceu (pode ter sido muito rápido)."
+                )
 
             # Fase B: Espera o loading SUMIR (Processamento concluído)
-            self.page.wait_for_selector(loading_sel, state='detached', timeout=UPLOAD_TIMEOUT)
+            self.page.wait_for_selector(
+                loading_sel, state="detached", timeout=UPLOAD_TIMEOUT
+            )
             logger.info(f"[{self.task_id}] Processamento do servidor finalizado.")
 
         except Exception as e:

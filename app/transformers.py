@@ -11,6 +11,7 @@ para o padrão final do TXT (ex: "1000.50").
 import pandas as pd
 import re
 
+
 def clean_numeric_string(value, max_len=None):
     """
     /// Limpa e padroniza campos numéricos.
@@ -21,7 +22,7 @@ def clean_numeric_string(value, max_len=None):
         return ""
 
     # Usa RegEx (re.sub) para remover tudo que não for um dígito (\D)
-    cleaned = re.sub(r'\D', '', str(value))
+    cleaned = re.sub(r"\D", "", str(value))
 
     if max_len and len(cleaned) > max_len:
         # Garante a regra de negócio de tamanho máximo (ex: CEP max 8)
@@ -41,7 +42,7 @@ def clean_alphanumeric(value, max_len=None):
         return ""
 
     # Converte para string, remove espaços nas pontas e substitui quebras de linha
-    cleaned = str(value).strip().replace('\n', ' ').replace('\r', '')
+    cleaned = str(value).strip().replace("\n", " ").replace("\r", "")
 
     if max_len and len(cleaned) > max_len:
         # Trunca a string para o tamanho máximo permitido (ex: Razão Social max 150)
@@ -55,7 +56,7 @@ def transform_monetary(value, decimal_separator, max_len=10):
     /// Normaliza valores monetários.
     /// Converte "R$ 1.234,56" (virgula) ou "1,234.56" (ponto)
     /// para o padrão do TXT: "1234.56" (ponto decimal, 2 casas).
-    
+
     /// CORREÇÃO: Agora aceita 'virgula' e 'ponto' (em português),
     /// conforme recebido do formulário HTML e usado em validators.py.
     """
@@ -63,18 +64,18 @@ def transform_monetary(value, decimal_separator, max_len=10):
         return "0.00"
 
     # Remove símbolos comuns (R$) e espaços
-    cleaned_str = str(value).replace('R$', '').strip()
+    cleaned_str = str(value).replace("R$", "").strip()
 
     # CORREÇÃO: Padronização para 'virgula' e 'ponto' (português)
-    if decimal_separator == 'virgula':
+    if decimal_separator == "virgula":
         # Formato Brasil (1.234,56)
         # 1. Remove pontos de milhar: "1.234,56" → "1234,56"
         # 2. Substitui vírgula decimal por ponto: "1234,56" → "1234.56"
-        cleaned_str = cleaned_str.replace('.', '').replace(',', '.')
+        cleaned_str = cleaned_str.replace(".", "").replace(",", ".")
     else:  # decimal_separator == 'ponto'
         # Formato EUA (1,234.56)
         # Remove apenas as vírgulas de milhar: "1,234.56" → "1234.56"
-        cleaned_str = cleaned_str.replace(',', '')
+        cleaned_str = cleaned_str.replace(",", "")
 
     # Remove qualquer outro caractere não numérico que sobrou (ex: espaços, letras)
     cleaned_str = re.sub(r"[^0-9.]", "", cleaned_str)
@@ -94,7 +95,7 @@ def transform_aliquota(value, decimal_separator, max_len=3):
     """
     /// Normaliza a alíquota (ex: "5" ou "2,5").
     /// Padroniza para "X.X" (ex: "5.0"), conforme 'modelo.txt'.
-    
+
     /// CORREÇÃO: Agora aceita 'virgula' e 'ponto' (em português).
     """
     if pd.isna(value) or value is None:
@@ -103,9 +104,9 @@ def transform_aliquota(value, decimal_separator, max_len=3):
     cleaned_str = str(value).strip()
 
     # CORREÇÃO: Padronização para 'virgula' e 'ponto' (português)
-    if decimal_separator == 'virgula':
+    if decimal_separator == "virgula":
         # Substitui vírgula por ponto para normalizar
-        cleaned_str = cleaned_str.replace(',', '.')
+        cleaned_str = cleaned_str.replace(",", ".")
 
     # Remove caracteres não numéricos (exceto ponto decimal)
     cleaned_str = re.sub(r"[^0-9.]", "", cleaned_str)
@@ -116,7 +117,7 @@ def transform_aliquota(value, decimal_separator, max_len=3):
         formatted_val = f"{float_val:.1f}"
     except (ValueError, TypeError):
         return "0.0"
-    
+
     # Lógica para respeitar os 3 chars (ex: 10.0 tem 4)
     if len(formatted_val) > max_len and float_val < 10:
         return formatted_val[:max_len]  # "5.0"
@@ -140,7 +141,7 @@ def transform_date(value):
         # pd.to_datetime é flexível para "adivinhar" o formato
         date_obj = pd.to_datetime(value, dayfirst=True)
         # .strftime formata a data para o padrão 'ddmmaaaa'
-        return date_obj.strftime('%d%m%Y')
+        return date_obj.strftime("%d%m%Y")
     except (ValueError, TypeError):
         return ""
 
@@ -157,8 +158,8 @@ def transform_boolean(value):
     val_lower = str(value).strip().lower()
 
     # Lista de valores que consideramos como "SIM"
-    if val_lower in ['1', 's', 'sim', 'true', 't', 'verdadeiro']:
+    if val_lower in ["1", "s", "sim", "true", "t", "verdadeiro"]:
         return "1"
-    
+
     # Todos os outros casos são tratados como "NÃO"
     return "0"
