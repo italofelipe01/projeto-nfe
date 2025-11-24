@@ -50,10 +50,11 @@ class ISSBot:
             # FASE 1: LOGIN
             user = creds.get("user")
             password = creds.get("pass")
+            inscricao = creds.get("inscricao")
 
-            if not user or not password:
+            if not user or not password or not inscricao:
                 raise ValueError(
-                    f"Credenciais incompletas para {inscricao_municipal} (Usuário ou Senha vazios)."
+                    f"Credenciais incompletas para {inscricao_municipal} (Usuário, Senha ou Inscrição vazios)."
                 )
 
             auth = ISSAuthenticator(self.page, self.task_id)
@@ -62,7 +63,7 @@ class ISSBot:
 
             # FASE 2: SELEÇÃO DE EMPRESA
             nav = ISSNavigator(self.page, self.task_id)
-            nav.select_contribuinte(creds["inscricao"])
+            nav.select_contribuinte(inscricao)
 
             # FASE 3: UPLOAD
             uploader = ISSUploader(self.page, self.task_id)
