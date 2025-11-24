@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
-from playwright.sync_api import sync_playwright
+from typing import Optional
+from playwright.sync_api import sync_playwright, Browser, BrowserContext, Page
 from rpa.config_rpa import CREDENTIALS, BROWSER_CONFIG, DEFAULT_TIMEOUT
 from rpa.utils import setup_logger
 from rpa.authentication import ISSAuthenticator
@@ -14,9 +15,9 @@ class ISSBot:
     def __init__(self, task_id: str, is_dev_mode: bool = False):
         self.task_id = task_id
         self.is_dev_mode = is_dev_mode
-        self.browser = None
-        self.context = None
-        self.page = None
+        self.browser: Optional[Browser] = None
+        self.context: Optional[BrowserContext] = None
+        self.page: Optional[Page] = None
 
     def execute(self, file_path: str, inscricao_municipal: str) -> dict:
         logger.info(f"[{self.task_id}] Iniciando Robô. IM: {inscricao_municipal}")
