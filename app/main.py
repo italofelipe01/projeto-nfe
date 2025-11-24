@@ -2,143 +2,147 @@ import os
 import uuid
 import threading
 import pandas as pd
-from flask import Blueprint, render_template, request, jsonify, send_from_directory, current_app
+from flask import (
+    Blueprint,
+    render_template,
+    request,
+    jsonify,
+    send_from_directory,
+    current_app,
+)
 from werkzeug.utils import secure_filename
-
-# Importações Internas
 from app.config import Config
 from app.converter import process_conversion
-
-# Importação do RPA Controller
 from rpa.bot_controller import run_rpa_process
 
-bp = Blueprint('main', __name__)
 
-# Dicionário em memória para status
+bp = Blueprint("main", __name__)
 conversions = {}
+
 
 def load_configurations():
     try:
-        csv_path = os.path.join(Config.PROJECT_ROOT, 'configuracoes.csv')
+        csv_path = os.path.join(Config.PROJECT_ROOT, "configuracoes.csv")
         if not os.path.exists(csv_path):
             return []
         df = pd.read_csv(csv_path)
-        return df.to_dict('records')
+        return df.to_dict("records")
     except Exception as e:
         print(f"Erro ao ler CSV: {e}")
         return []
 
+
 app_configurations = load_configurations()
 
-def allowed_file(filename):
-    return '.' in filename and \
-           filename.rsplit('.', 1)[1].lower() in Config.ALLOWED_EXTENSIONS
 
-def update_task_status(task_id, status, progress, message, details, **kwargs):
+def allowed_file(filename):
+    return (
+        "." in filename
+        and filename.rsplit(".", 1)[1].lower() in Config.ALLOWED_EXTENSIONS
+    )
+
+
+def update_task_status(task_id, status, progress, msg, details, **kwargs):
     if task_id in conversions:
-        conversions[task_id]['status'] = status
-        conversions[task_id]['progress'] = progress
-        conversions[task_id]['message'] = message
-        conversions[task_id]['details'] = details
+        conversions[task_id]["status"] = status
+        conversions[task_id]["progress"] = progress
+        conversions[task_id]["message"] = msg
+        conversions[task_id]["details"] = details
         conversions[task_id].update(kwargs)
 
-# --- Rotas ---
 
-@bp.route('/')
+@bp.route("/")
 def index():
-    return render_template('index.html', configurations=app_configurations)
+    return render_template("index.html", configurations=app_configurations)
 
-@bp.route('/upload', methods=['POST'])
+
+@bp.route("/upload", methods=["POST"])
 def upload_file():
-    if 'file' not in request.files:
-        return jsonify({'error': 'Nenhum arquivo enviado'}), 400
-    
-    file = request.files['file']
+    if "file" not in request.files:
+        return jsonify({"error": "Nenhum arquivo enviado"}), 400
+
+    file = request.files["file"]
     form_data = request.form.to_dict()
     original_filename = file.filename
 
     if not original_filename or not allowed_file(original_filename):
-        return jsonify({'error': 'Arquivo inválido'}), 400
+        return jsonify({"error": "Arquivo inválido"}), 400
 
     task_id = str(uuid.uuid4())
     filename = secure_filename(original_filename)
     saved_filename = f"{task_id}_{filename}"
-    
-    file_path = os.path.join(current_app.config['UPLOADS_DIR'], saved_filename)
-    os.makedirs(current_app.config['UPLOADS_DIR'], exist_ok=True)
+
+    file_path = os.path.join(current_app.config["UPLOADS_DIR"], saved_filename)
+    os.makedirs(current_app.config["UPLOADS_DIR"], exist_ok=True)
     file.save(file_path)
 
     conversions[task_id] = {
-        'status': 'processing',
-        'progress': 0,
-        'message': 'Na fila...',
-        'details': ''
+        "status": "processing",
+        "progress": 0,
+        "message": "Na fila...",
+        "details": "",
     }
 
     processor_thread = threading.Thread(
         target=process_conversion,
-        args=(task_id, file_path, form_data, update_task_status)
+        args=(task_id, file_path, form_data, update_task_status),
     )
     processor_thread.start()
 
-    return jsonify({'task_id': task_id})
+    return jsonify({"task_id": task_id})
 
-@bp.route('/status/<task_id>')
+
+@bp.route("/status/<task_id>")
 def status(task_id):
     task_status = conversions.get(task_id)
     if not task_status:
-        return jsonify({'status': 'error', 'message': 'Tarefa não encontrada'}), 404
+        return jsonify({"status": "error", "message": "Tarefa não encontrada"}), 404
     return jsonify(task_status)
 
-@bp.route('/download/<filename>')
+
+@bp.route("/download/<filename>")
 def download_file(filename):
     return send_from_directory(
-        current_app.config['DOWNLOADS_DIR'],
+        current_app.config["DOWNLOADS_DIR"],
         secure_filename(filename),
-        as_attachment=True
+        as_attachment=True,
     )
 
-@bp.route('/rpa/execute', methods=['POST'])
+
+@bp.route("/rpa/execute", methods=["POST"])
 def execute_rpa():
-    """
-    Endpoint para disparar o Robô Playwright.
-    Espera JSON: { "filename": "...", "mode": "dev/prod", "inscricao_municipal": "..." }
-    """
-    # CORREÇÃO 1: Garante que o request é JSON válido
     data = request.get_json(silent=True)
     if not data:
-        return jsonify({'success': False, 'message': 'Payload JSON inválido ou ausente.'}), 400
+        return jsonify({"success": False, "message": "JSON inválido."}), 400
 
-    # CORREÇÃO 2: Uso seguro do .get() agora que 'data' é garantido como dict
-    filename = data.get('filename')
-    mode = data.get('mode')
-    inscricao_municipal = data.get('inscricao_municipal')
+    filename = data.get("filename")
+    mode = data.get("mode")
+    inscricao_municipal = data.get("inscricao_municipal")
 
-    # Validação dos parâmetros obrigatórios para o RPA
     if not filename:
-        return jsonify({'success': False, 'message': 'Nome do arquivo não fornecido.'}), 400
-    
-    if not inscricao_municipal:
-        return jsonify({'success': False, 'message': 'Inscrição Municipal obrigatória para o Robô.'}), 400
-        
-    file_path = os.path.join(current_app.config['DOWNLOADS_DIR'], filename)
-    
-    # Verifica se o arquivo existe antes de chamar o robô
-    if not os.path.exists(file_path):
-        return jsonify({'success': False, 'message': 'Arquivo para envio não encontrado no servidor.'}), 404
+        return jsonify({"success": False, "message": "Nome do arquivo ausente."}), 400
 
-    is_dev = (mode == 'dev')
-    rpa_task_id = str(uuid.uuid4()) # ID único para esta execução do robô
+    if not inscricao_municipal:
+        return (
+            jsonify({"success": False, "message": "Inscrição Municipal obrigatória."}),
+            400,
+        )
+
+    file_path = os.path.join(current_app.config["DOWNLOADS_DIR"], filename)
+
+    if not os.path.exists(file_path):
+        return jsonify({"success": False, "message": "Arquivo não encontrado."}), 404
+
+    is_dev = mode == "dev"
+    rpa_task_id = str(uuid.uuid4())
 
     try:
-        # CORREÇÃO 3: Passando todos os argumentos exigidos pelo bot_controller.py
-        # (task_id, file_path, inscricao_municipal, is_dev_mode)
         result = run_rpa_process(
             task_id=rpa_task_id,
             file_path=file_path,
             inscricao_municipal=inscricao_municipal,
-            is_dev_mode=is_dev
+            is_dev_mode=is_dev,
         )
         return jsonify(result)
     except Exception as e:
-        return jsonify({'success': False, 'message': str(e)}), 500
+        return jsonify({"success": False, "message": str(e)}), 500
