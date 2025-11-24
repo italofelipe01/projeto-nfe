@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
-from playwright.sync_api import sync_playwright
+from typing import Optional
+from playwright.sync_api import sync_playwright, Browser, BrowserContext, Page
 from rpa.config_rpa import CREDENTIALS, BROWSER_CONFIG, DEFAULT_TIMEOUT
 from rpa.utils import setup_logger
 from rpa.authentication import ISSAuthenticator
@@ -14,12 +15,23 @@ class ISSBot:
     def __init__(self, task_id: str, is_dev_mode: bool = False):
         self.task_id = task_id
         self.is_dev_mode = is_dev_mode
-        self.browser = None
-        self.context = None
-        self.page = None
+        self.browser: Optional[Browser] = None
+        self.context: Optional[BrowserContext] = None
+        self.page: Optional[Page] = None
 
-    def execute(self, file_path: str, inscricao_municipal: str) -> dict:
+    def execute(
+        self,
+        file_path: str,
+        inscricao_municipal: str,
+        status_callback=None,
+    ) -> dict:
+        """
+        Executa o fluxo RPA completo.
+        :param status_callback: Função opcional (fn(msg)) para reportar progresso.
+        """
         logger.info(f"[{self.task_id}] Iniciando Robô. IM: {inscricao_municipal}")
+        if status_callback:
+            status_callback("Iniciando Robô...")
 
         creds = CREDENTIALS.get(str(inscricao_municipal))
         if not creds:
@@ -48,21 +60,45 @@ class ISSBot:
             self.page.set_default_timeout(DEFAULT_TIMEOUT)
 
             # FASE 1: LOGIN
+            if status_callback:
+                status_callback("Realizando Login...")
+
+            user = creds.get("user")
+            password = creds.get("pass")
+            inscricao = creds.get("inscricao")
+
+            if not user or not password or not inscricao:
+                raise ValueError(
+                    f"Credenciais incompletas para {inscricao_municipal} (Usuário, Senha ou Inscrição vazios)."
+                )
+
             auth = ISSAuthenticator(self.page, self.task_id)
-            if not auth.login(creds["user"], creds["pass"]):
+            if not auth.login(user, password):
                 raise Exception("Falha na etapa de autenticação.")
 
             # FASE 2: SELEÇÃO DE EMPRESA
+            if status_callback:
+                status_callback("Selecionando Empresa...")
+
             nav = ISSNavigator(self.page, self.task_id)
-            nav.selecionar_empresa(creds["inscricao"])
+            nav.select_contribuinte(inscricao)
 
             # FASE 3: UPLOAD
+            if status_callback:
+                status_callback("Enviando Arquivo...")
+
             uploader = ISSUploader(self.page, self.task_id)
             uploader.upload_file(file_path)
 
             # FASE 4: RESULTADOS
+            if status_callback:
+                status_callback("Lendo Resultados...")
+
             parser = ISSResultParser(self.page, self.task_id)
             resultado = parser.parse()
+
+            if status_callback:
+                status_callback("Concluído.")
 
             return resultado
 
@@ -85,7 +121,11 @@ class ISSBot:
 
 
 def run_rpa_process(
-    task_id: str, file_path: str, inscricao_municipal: str, is_dev_mode: bool = False
+    task_id: str,
+    file_path: str,
+    inscricao_municipal: str,
+    is_dev_mode: bool = False,
+    status_callback=None,
 ):
     bot = ISSBot(task_id, is_dev_mode)
-    return bot.execute(file_path, inscricao_municipal)
+    return bot.execute(file_path, inscricao_municipal, status_callback)

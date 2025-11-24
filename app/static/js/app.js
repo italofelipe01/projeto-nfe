@@ -271,14 +271,15 @@ document.addEventListener('DOMContentLoaded', () => {
         const isDev = devModeCheck.checked;
         const statusSpan = rpaStatusText;
         const logsDiv = rpaLogs;
+        const btn = document.getElementById('btnRunRPA');
 
         // UI Feedback inicial
         logsDiv.style.display = 'block';
-        statusSpan.innerText = "⏳ Inicializando robô... Por favor, aguarde (não feche a janela).";
+        statusSpan.innerText = "⏳ Solicitando execução...";
         statusSpan.className = "text-info";
         
         // Desabilita botão
-        document.getElementById('btnRunRPA').disabled = true; // Re-seleciona o botão atualizado do DOM
+        btn.disabled = true;
 
         try {
             const response = await fetch('/rpa/execute', {
@@ -286,32 +287,66 @@ document.addEventListener('DOMContentLoaded', () => {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ 
                     filename: filename,
-                    inscricao_municipal: inscricao, // O CAMPO CRÍTICO QUE FALTAVA
+                    inscricao_municipal: inscricao,
                     mode: isDev ? 'dev' : 'prod'
                 }),
             });
 
             const data = await response.json();
 
-            if (response.ok && data.success) {
-                statusSpan.innerText = "✅ " + data.message;
-                statusSpan.className = "text-success";
+            if (response.ok && data.success && data.task_id) {
+                statusSpan.innerText = "🚀 " + data.message;
+                // Inicia polling do RPA
+                pollRPAStatus(data.task_id);
             } else {
-                // Tratamento de erro vindo da API (ex: erro de login)
                 const errorMsg = data.message || "Erro desconhecido";
-                const details = data.details ? ` (${data.details})` : "";
-                statusSpan.innerText = "❌ " + errorMsg + details;
+                statusSpan.innerText = "❌ " + errorMsg;
                 statusSpan.className = "text-danger";
+                btn.disabled = false;
             }
 
         } catch (error) {
             console.error('RPA Error:', error);
-            statusSpan.innerText = "❌ Erro de comunicação com o servidor RPA.";
+            statusSpan.innerText = "❌ Erro de comunicação.";
             statusSpan.className = "text-danger";
-        } finally {
-            // Reabilita o botão para permitir nova tentativa
-            document.getElementById('btnRunRPA').disabled = false;
+            btn.disabled = false;
         }
+    }
+
+    function pollRPAStatus(taskId) {
+        const statusSpan = rpaStatusText;
+        const btn = document.getElementById('btnRunRPA');
+
+        const interval = setInterval(async () => {
+            try {
+                const res = await fetch(`/rpa/status/${taskId}`);
+                if (!res.ok) throw new Error("Erro ao consultar status RPA");
+
+                const statusData = await res.json();
+
+                // Atualiza mensagem na tela
+                statusSpan.innerText = `🤖 ${statusData.message}`;
+
+                // Verifica conclusão
+                if (statusData.success !== null) { // true ou false (não null)
+                    clearInterval(interval);
+                    btn.disabled = false;
+
+                    if (statusData.success) {
+                        statusSpan.className = "text-success";
+                        statusSpan.innerText = "✅ " + statusData.message;
+                    } else {
+                        statusSpan.className = "text-danger";
+                        statusSpan.innerText = "❌ " + statusData.message + (statusData.details ? ` (${statusData.details})` : "");
+                    }
+                }
+
+            } catch (err) {
+                console.error(err);
+                statusSpan.innerText = "⚠️ Erro ao atualizar status.";
+                // Não para o polling imediatamente, pois pode ser intermitência
+            }
+        }, 2000); // Consulta a cada 2 segundos
     }
 
     // --- 9. Botão "Nova Conversão" ---
