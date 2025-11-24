@@ -48,13 +48,21 @@ class ISSBot:
             self.page.set_default_timeout(DEFAULT_TIMEOUT)
 
             # FASE 1: LOGIN
+            user = creds.get("user")
+            password = creds.get("pass")
+
+            if not user or not password:
+                raise ValueError(
+                    f"Credenciais incompletas para {inscricao_municipal} (Usuário ou Senha vazios)."
+                )
+
             auth = ISSAuthenticator(self.page, self.task_id)
-            if not auth.login(creds["user"], creds["pass"]):
+            if not auth.login(user, password):
                 raise Exception("Falha na etapa de autenticação.")
 
             # FASE 2: SELEÇÃO DE EMPRESA
             nav = ISSNavigator(self.page, self.task_id)
-            nav.selecionar_empresa(creds["inscricao"])
+            nav.select_contribuinte(creds["inscricao"])
 
             # FASE 3: UPLOAD
             uploader = ISSUploader(self.page, self.task_id)
