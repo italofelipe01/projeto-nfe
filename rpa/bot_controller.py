@@ -59,8 +59,9 @@ class ISSBot:
 
                 record_dir = None
                 if self.is_dev_mode:
-                    record_dir = f"rpa_logs/videos/{self.task_id}"
+                    record_dir = f"rpa_logs/videos/{self.task_id}" # Configura gravação de vídeo
 
+                # 2. Criação do Contexto e Página
                 self.context = self.browser.new_context(
                     record_video_dir=record_dir, viewport={"width": 1280, "height": 720}
                 )
@@ -70,12 +71,14 @@ class ISSBot:
                 # FASE 1: LOGIN
                 if status_callback:
                     status_callback(f"Realizando Login (Tentativa {attempt})...")
+                    status_callback("Realizando Login...")
 
                 user = creds.get("user")
                 password = creds.get("pass")
                 inscricao = creds.get("inscricao")
 
                 if not user or not password or not inscricao:
+                    # Lançamos uma exceção clara para credenciais incompletas
                     raise ValueError(
                         f"Credenciais incompletas para {inscricao_municipal} (Usuário, Senha ou Inscrição vazios)."
                     )
@@ -85,6 +88,7 @@ class ISSBot:
                     # Login falhou, mas não lançou exceção (retornou False).
                     # Consideramos erro de negócio (senha errada), então não retry.
                     raise Exception("Falha na etapa de autenticação (Login recusado).")
+                    raise Exception("Falha na etapa de autenticação.")
 
                 # FASE 2: SELEÇÃO DE EMPRESA
                 if status_callback:
@@ -92,6 +96,7 @@ class ISSBot:
 
                 nav = ISSNavigator(self.page, self.task_id)
                 nav.select_contribuinte(inscricao)
+                nav.select_contribuinte(inscricao) # Navega e seleciona o contribuinte
 
                 # FASE 3: UPLOAD
                 if status_callback:
@@ -149,6 +154,69 @@ class ISSBot:
                     self.browser.close()
                 if playwright:
                     playwright.stop()
+            # FASE 1: LOGIN
+            if status_callback:
+                status_callback("Realizando Login...")
+
+            user = creds.get("user")
+            password = creds.get("pass")
+            inscricao = creds.get("inscricao")
+
+            if not user or not password or not inscricao:
+                raise ValueError(
+                    f"Credenciais incompletas para {inscricao_municipal} (Usuário, Senha ou Inscrição vazios)."
+                )
+
+            auth = ISSAuthenticator(self.page, self.task_id)
+            if not auth.login(user, password):
+                raise Exception("Falha na etapa de autenticação.")
+
+            # FASE 2: SELEÇÃO DE EMPRESA
+            if status_callback:
+                status_callback("Selecionando Empresa...")
+
+            nav = ISSNavigator(self.page, self.task_id)
+            nav.select_contribuinte(inscricao)
+
+            # FASE 3: UPLOAD
+            if status_callback:
+                status_callback("Enviando Arquivo...")
+
+            uploader = ISSUploader(self.page, self.task_id)
+            uploader.upload_file(file_path)
+
+            # FASE 4: RESULTADOS
+            if status_callback:
+                status_callback("Lendo Resultados...")
+
+            parser = ISSResultParser(self.page, self.task_id)
+            resultado = parser.parse()
+
+            if status_callback:
+                status_callback("Concluído.")
+
+            return resultado
+
+        except Exception as e:
+            # Captura de erro fatal. O log 'exception' registra o traceback completo.
+            logger.exception(f"[{self.task_id}] Erro fatal durante execução")
+            # Adicionamos uma nota nos detalhes de erro para auxiliar o usuário
+            # a identificar a causa raiz no ambiente de desenvolvimento.
+            return {
+                "success": False,
+                "message": f"Erro técnico: {str(e)}",
+                "details": "Consulte os logs técnicos. Se o problema for 'EPIPE: broken pipe', pode ser causado pelo reinício abrupto do processo pelo Watchdog do Flask (Modo Debug).",
+            }
+
+        finally:
+            # O fechamento do contexto e navegador deve permanecer no 'finally' para garantir
+            # o cleanup das instâncias criadas dentro do 'try' antes que o 'with' finalize.
+            logger.info(f"[{self.task_id}] Encerrando sessão.")
+            if self.context:
+                self.context.close()
+            if self.browser:
+                self.browser.close()
+            # 'playwright.stop()' é removido, pois o 'with sync_playwright()' garante isso.
 
 
 def run_rpa_process(
