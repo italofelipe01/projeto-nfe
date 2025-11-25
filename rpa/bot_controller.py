@@ -1,20 +1,47 @@
 # -*- coding: utf-8 -*-
-from typing import Optional
-import time
-from playwright.sync_api import sync_playwright, Browser, BrowserContext, Page
-from rpa.config_rpa import CREDENTIALS, BROWSER_CONFIG, DEFAULT_TIMEOUT
-from rpa.utils import setup_logger
-from rpa.authentication import ISSAuthenticator
-from rpa.portal_navigator import ISSNavigator
-from rpa.file_uploader import ISSUploader
-from rpa.result_parser import ISSResultParser
-from rpa.error_handler import PortalOfflineError
+"""
+Módulo Orquestrador do Robô (rpa/bot_controller.py).
 
-logger = setup_logger()
+Responsabilidade:
+1. Orquestrar o fluxo completo de automação (Login -> Navegação -> Upload -> Extração).
+2. Gerenciar a inicialização e o encerramento do Playwright (navegador).
+3. Implementar uma política de retentativas (retry) para falhas de infraestrutura.
+4. Coordenar os módulos especializados e tratar exceções de forma centralizada.
+"""
+
+import time
+from typing import Optional
+
+from playwright.sync_api import Browser, BrowserContext, Page, sync_playwright
+
+# Módulos de configuração e utilitários
+from rpa.config_rpa import BROWSER_CONFIG, CREDENTIALS, DEFAULT_TIMEOUT
+from rpa.error_handler import PortalOfflineError, AuthenticationError
+from rpa.utils import setup_logger
+
+# Módulos de Ação Especializados
+from rpa.authentication import ISSAuthenticator
+from rpa.file_uploader import ISSUploader
+from rpa.portal_navigator import ISSNavigator
+from rpa.result_parser import ISSResultParser
+
+# Configuração do Logger para este módulo
+logger = setup_logger("rpa_bot_controller")
 
 
 class ISSBot:
+    """
+    Classe principal do Robô, encapsulando a lógica de automação do portal ISS.net.
+    """
+
     def __init__(self, task_id: str, is_dev_mode: bool = False):
+        """
+        Inicializa o robô.
+
+        Args:
+            task_id (str): ID único para rastrear a execução nos logs.
+            is_dev_mode (bool): Se True, executa em modo 'headful' (visível).
+        """
         self.task_id = task_id
         self.is_dev_mode = is_dev_mode
         self.browser: Optional[Browser] = None
@@ -29,18 +56,20 @@ class ISSBot:
     ) -> dict:
         """
         Executa o fluxo RPA completo com política de retry para falhas de infraestrutura.
-        :param status_callback: Função opcional (fn(msg)) para reportar progresso.
+        Utiliza um loop de retentativas com backoff exponencial para lidar com instabilidades do portal.
         """
         logger.info(f"[{self.task_id}] Iniciando Robô. IM: {inscricao_municipal}")
         if status_callback:
             status_callback("Iniciando Robô...")
 
+        # Validação de Credenciais
         creds = CREDENTIALS.get(str(inscricao_municipal))
         if not creds:
-            msg = f"Credenciais não achadas p/ {inscricao_municipal}"
+            msg = f"Credenciais não encontradas para a Inscrição Municipal '{inscricao_municipal}'."
             logger.error(f"[{self.task_id}] {msg}")
             return {"success": False, "message": msg}
 
+        # --- Lógica de Retentativas ---
         max_retries = 3
         attempt = 0
         backoff_base = 2  # Segundos
@@ -49,6 +78,11 @@ class ISSBot:
             attempt += 1
             playwright = None
             try:
+                # --- FASE 0: INICIALIZAÇÃO DO NAVEGADOR ---
+                logger.debug(f"[{self.task_id}] [Tentativa {attempt}] Iniciando Playwright...")
+                if status_callback:
+                    status_callback(f"Conectando ao portal (Tentativa {attempt})...")
+
                 playwright = sync_playwright().start()
 
                 launch_config = BROWSER_CONFIG.copy()
@@ -57,167 +91,83 @@ class ISSBot:
 
                 self.browser = playwright.chromium.launch(**launch_config)
 
-                record_dir = None
-                if self.is_dev_mode:
-                    record_dir = f"rpa_logs/videos/{self.task_id}" # Configura gravação de vídeo
-
-                # 2. Criação do Contexto e Página
+                record_dir = f"rpa_logs/videos/{self.task_id}" if self.is_dev_mode else None
                 self.context = self.browser.new_context(
-                    record_video_dir=record_dir, viewport={"width": 1280, "height": 720}
+                    record_video_dir=record_dir,
+                    viewport={"width": 1280, "height": 720},
                 )
                 self.page = self.context.new_page()
                 self.page.set_default_timeout(DEFAULT_TIMEOUT)
 
-                # FASE 1: LOGIN
-                if status_callback:
-                    status_callback(f"Realizando Login (Tentativa {attempt})...")
-                    status_callback("Realizando Login...")
-
-                user = creds.get("user")
-                password = creds.get("pass")
-                inscricao = creds.get("inscricao")
-
-                if not user or not password or not inscricao:
-                    # Lançamos uma exceção clara para credenciais incompletas
-                    raise ValueError(
-                        f"Credenciais incompletas para {inscricao_municipal} (Usuário, Senha ou Inscrição vazios)."
-                    )
+                # --- FASE 1: LOGIN ---
+                user, password, inscricao = (
+                    creds.get("user"),
+                    creds.get("pass"),
+                    creds.get("inscricao"),
+                )
+                if not all([user, password, inscricao]):
+                    raise ValueError(f"Credenciais incompletas para {inscricao_municipal}.")
 
                 auth = ISSAuthenticator(self.page, self.task_id)
-                if not auth.login(user, password):
-                    # Login falhou, mas não lançou exceção (retornou False).
-                    # Consideramos erro de negócio (senha errada), então não retry.
-                    raise Exception("Falha na etapa de autenticação (Login recusado).")
-                    raise Exception("Falha na etapa de autenticação.")
+                auth.login(user, password, status_callback)
 
-                # FASE 2: SELEÇÃO DE EMPRESA
+                # --- FASE 2: SELEÇÃO DE EMPRESA ---
                 if status_callback:
-                    status_callback("Selecionando Empresa...")
-
+                    status_callback("Selecionando empresa...")
                 nav = ISSNavigator(self.page, self.task_id)
                 nav.select_contribuinte(inscricao)
-                nav.select_contribuinte(inscricao) # Navega e seleciona o contribuinte
 
-                # FASE 3: UPLOAD
+                # --- FASE 3: UPLOAD ---
                 if status_callback:
-                    status_callback("Enviando Arquivo...")
-
+                    status_callback("Enviando arquivo...")
                 uploader = ISSUploader(self.page, self.task_id)
                 uploader.upload_file(file_path)
 
-                # FASE 4: RESULTADOS
+                # --- FASE 4: LEITURA DE RESULTADOS ---
                 if status_callback:
-                    status_callback("Lendo Resultados...")
-
+                    status_callback("Analisando resultados...")
                 parser = ISSResultParser(self.page, self.task_id)
                 resultado = parser.parse()
 
                 if status_callback:
-                    status_callback("Concluído.")
-
+                    status_callback("Processo concluído com sucesso!")
                 return resultado
 
             except PortalOfflineError as e:
-                # ERRO DE INFRAESTRUTURA -> RETRY
-                logger.warning(
-                    f"[{self.task_id}] Portal offline ou instável (Tentativa {attempt}/{max_retries}): {e}"
-                )
+                logger.warning(f"[{self.task_id}] Portal instável (Tentativa {attempt}/{max_retries}): {e}")
                 if attempt >= max_retries:
-                    logger.error(f"[{self.task_id}] Esgotadas tentativas de conexão.")
-                    return {
-                        "success": False,
-                        "message": "Erro de Infraestrutura: Portal indisponível após múltiplas tentativas.",
-                        "details": str(e),
-                    }
+                    logger.error(f"[{self.task_id}] Esgotadas as tentativas de conexão.")
+                    return {"success": False, "message": "Erro de Infraestrutura: O portal está indisponível.", "details": str(e)}
 
-                # Backoff Exponencial
-                wait_time = backoff_base ** attempt
+                wait_time = backoff_base**attempt
                 if status_callback:
-                    status_callback(f"Portal instável. Aguardando {wait_time}s...")
+                    status_callback(f"Portal instável. Nova tentativa em {wait_time}s...")
                 time.sleep(wait_time)
-                continue  # Tenta novamente
+
+            except AuthenticationError as e:
+                # Erro específico de autenticação -> Não adianta tentar novamente
+                logger.error(f"[{self.task_id}] Erro fatal de autenticação: {e}")
+                return {"success": False, "message": "Erro de Autenticação", "details": str(e)}
 
             except Exception as e:
-                # ERRO GERAL (Negócio, Código, Autenticação) -> ABORTA
-                logger.exception(f"[{self.task_id}] Erro fatal durante execução")
-                return {
-                    "success": False,
-                    "message": f"Erro técnico: {str(e)}",
-                    "details": "Consulte os logs técnicos.",
-                }
+                # Erro fatal genérico -> Aborta
+                logger.exception(f"[{self.task_id}] Erro fatal inesperado na execução do robô.")
+                return {"success": False, "message": "Erro Inesperado", "details": f"Um erro técnico impediu o processo: {e}"}
 
             finally:
-                logger.info(f"[{self.task_id}] Encerrando sessão (Cleanup da tentativa).")
+                logger.info(f"[{self.task_id}] [Tentativa {attempt}] Encerrando sessão do navegador.")
                 if self.context:
                     self.context.close()
                 if self.browser:
                     self.browser.close()
                 if playwright:
                     playwright.stop()
-            # FASE 1: LOGIN
-            if status_callback:
-                status_callback("Realizando Login...")
 
-            user = creds.get("user")
-            password = creds.get("pass")
-            inscricao = creds.get("inscricao")
-
-            if not user or not password or not inscricao:
-                raise ValueError(
-                    f"Credenciais incompletas para {inscricao_municipal} (Usuário, Senha ou Inscrição vazios)."
-                )
-
-            auth = ISSAuthenticator(self.page, self.task_id)
-            if not auth.login(user, password):
-                raise Exception("Falha na etapa de autenticação.")
-
-            # FASE 2: SELEÇÃO DE EMPRESA
-            if status_callback:
-                status_callback("Selecionando Empresa...")
-
-            nav = ISSNavigator(self.page, self.task_id)
-            nav.select_contribuinte(inscricao)
-
-            # FASE 3: UPLOAD
-            if status_callback:
-                status_callback("Enviando Arquivo...")
-
-            uploader = ISSUploader(self.page, self.task_id)
-            uploader.upload_file(file_path)
-
-            # FASE 4: RESULTADOS
-            if status_callback:
-                status_callback("Lendo Resultados...")
-
-            parser = ISSResultParser(self.page, self.task_id)
-            resultado = parser.parse()
-
-            if status_callback:
-                status_callback("Concluído.")
-
-            return resultado
-
-        except Exception as e:
-            # Captura de erro fatal. O log 'exception' registra o traceback completo.
-            logger.exception(f"[{self.task_id}] Erro fatal durante execução")
-            # Adicionamos uma nota nos detalhes de erro para auxiliar o usuário
-            # a identificar a causa raiz no ambiente de desenvolvimento.
-            return {
-                "success": False,
-                "message": f"Erro técnico: {str(e)}",
-                "details": "Consulte os logs técnicos. Se o problema for 'EPIPE: broken pipe', pode ser causado pelo reinício abrupto do processo pelo Watchdog do Flask (Modo Debug).",
-            }
-
-        finally:
-            # O fechamento do contexto e navegador deve permanecer no 'finally' para garantir
-            # o cleanup das instâncias criadas dentro do 'try' antes que o 'with' finalize.
-            logger.info(f"[{self.task_id}] Encerrando sessão.")
-            if self.context:
-                self.context.close()
-            if self.browser:
-                self.browser.close()
-            # 'playwright.stop()' é removido, pois o 'with sync_playwright()' garante isso.
-
+        return {
+            "success": False,
+            "message": "Falha na execução do robô após múltiplas tentativas.",
+            "details": "O robô não conseguiu concluir a tarefa. Verifique os logs para mais detalhes.",
+        }
 
 def run_rpa_process(
     task_id: str,
@@ -225,6 +175,9 @@ def run_rpa_process(
     inscricao_municipal: str,
     is_dev_mode: bool = False,
     status_callback=None,
-):
+) -> dict:
+    """
+    Ponto de entrada para iniciar o processo de RPA.
+    """
     bot = ISSBot(task_id, is_dev_mode)
     return bot.execute(file_path, inscricao_municipal, status_callback)

@@ -1,0 +1,2 @@
+modelo;numero_documento;valor_tributavel;valor_documento;aliquota;data_emissao;data_pagamento;cpf_cnpj_prestador;razao_social_prestador;inscricao_municipal_prestador;imposto_retido;cep_prestador;endereco_prestador;numero_endereco;bairro_prestador;cidade_prestador;uf_prestador;ddd;tributado_municipio;item_lc;unidade_economica
+1;123;100,00;100,00;5,00;01/01/2025;01/01/2025;12345678901234;Test Provider;123456;Sim;12345678;Test Street;123;Test Neighborhood;Test City;TS;11;Sim;1.01;Sim
