@@ -371,6 +371,9 @@ document.addEventListener('DOMContentLoaded', () => {
         fileNamePreview.textContent = '';
         fileLabel.textContent = "Clique ou arraste o arquivo (.csv ou .xlsx) aqui";
 
+        // Limpa o valor do input de arquivo para permitir o re-upload do mesmo arquivo
+        fileInput.value = '';
+
         // Reseta variáveis de controle
         convertBtn.disabled = true;
         currentTaskId = null;
