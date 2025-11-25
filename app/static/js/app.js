@@ -26,6 +26,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const errorsList = document.getElementById('errors-list');
     const errorsContent = document.getElementById('errors-content');
     const downloadBtn = document.getElementById('download-btn');
+    const downloadErrorsBtn = document.getElementById('download-errors-btn'); // NOVO
     const newConversionBtn = document.getElementById('new-conversion-btn');
 
     // --- NOVOS SELETORES DO RPA ---
@@ -33,7 +34,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const btnRunRPA = document.getElementById('btnRunRPA');
     const rpaStatusText = document.getElementById('rpa-status-text');
     const rpaLogs = document.getElementById('rpa-logs');
-    const devModeCheck = document.getElementById('devModeCheck');
+    const rpaModeSelector = document.getElementById('rpaModeSelector'); // NOVO
 
     // Seletores dos campos do formulário
     const configSelector = document.getElementById('config-selector');
@@ -217,6 +218,26 @@ document.addEventListener('DOMContentLoaded', () => {
         successRecords.textContent = data.success || 0;
         errorRecords.textContent = data.errors || 0;
 
+        // Configura botão de download de SUCESSO
+        if (data.filename) {
+            downloadBtn.disabled = false;
+            downloadBtn.onclick = () => {
+                window.location.href = `/download/${data.filename}`;
+            };
+        } else {
+            downloadBtn.disabled = true;
+        }
+
+        // Configura botão de download de ERROS (NOVO)
+        if (data.error_filename) {
+            downloadErrorsBtn.style.display = 'block';
+            downloadErrorsBtn.onclick = () => {
+                window.location.href = `/download/${data.error_filename}`;
+            };
+        } else {
+            downloadErrorsBtn.style.display = 'none';
+        }
+
         if (data.errors > 0 && data.error_details && Array.isArray(data.error_details)) {
             let errorString = "";
             data.error_details.forEach(item => {
@@ -227,15 +248,6 @@ document.addEventListener('DOMContentLoaded', () => {
         } else {
             errorsList.classList.add('hide');
             errorsContent.textContent = '';
-        }
-
-        if (data.filename) {
-            downloadBtn.disabled = false;
-            downloadBtn.onclick = () => {
-                window.location.href = `/download/${data.filename}`;
-            };
-        } else {
-            downloadBtn.disabled = true;
         }
     }
 
@@ -268,7 +280,8 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     async function executeRobot(filename, inscricao) {
-        const isDev = devModeCheck.checked;
+        const selectedMode = rpaModeSelector.value; // Pega valor do Select
+        const isDev = selectedMode === 'dev';
         const statusSpan = rpaStatusText;
         const logsDiv = rpaLogs;
         const btn = document.getElementById('btnRunRPA');
@@ -351,18 +364,27 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- 9. Botão "Nova Conversão" ---
     newConversionBtn.addEventListener('click', () => {
+        // Reseta o formulário HTML
         uploadForm.reset();
+
+        // Reseta estados visuais manuais
         fileNamePreview.textContent = '';
         fileLabel.textContent = "Clique ou arraste o arquivo (.csv ou .xlsx) aqui";
+
+        // Reseta variáveis de controle
         convertBtn.disabled = true;
         currentTaskId = null;
         
-        // Reseta UI do RPA
+        // Reseta UI do RPA e Erros
         rpaSection.style.display = 'none';
         rpaLogs.style.display = 'none';
+        downloadErrorsBtn.style.display = 'none'; // Esconde botão de erros
         
         resetProgress();
         showStep(1);
+
+        // Garante que o estado do botão "Converter" está sincronizado com o form vazio
+        validateForm();
     });
 
     function resetProgress() {

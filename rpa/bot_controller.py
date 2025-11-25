@@ -90,20 +90,48 @@ class ISSBot:
                 if status_callback:
                     status_callback("Enviando Arquivo...")
 
-                uploader = ISSUploader(self.page, self.task_id)
-                uploader.upload_file(file_path) # Injeta o arquivo no input oculto
+            # FASE 1: LOGIN
+            if status_callback:
+                status_callback("Realizando Login...")
 
-                # FASE 4: RESULTADOS
-                if status_callback:
-                    status_callback("Lendo Resultados...")
+            user = creds.get("user")
+            password = creds.get("pass")
+            inscricao = creds.get("inscricao")
 
-                parser = ISSResultParser(self.page, self.task_id)
-                resultado = parser.parse() # Captura o resultado da importação
+            if not user or not password or not inscricao:
+                raise ValueError(
+                    f"Credenciais incompletas para {inscricao_municipal} (Usuário, Senha ou Inscrição vazios)."
+                )
 
-                if status_callback:
-                    status_callback("Concluído.")
+            auth = ISSAuthenticator(self.page, self.task_id)
+            if not auth.login(user, password):
+                raise Exception("Falha na etapa de autenticação.")
 
-                return resultado
+            # FASE 2: SELEÇÃO DE EMPRESA
+            if status_callback:
+                status_callback("Selecionando Empresa...")
+
+            nav = ISSNavigator(self.page, self.task_id)
+            nav.select_contribuinte(inscricao)
+
+            # FASE 3: UPLOAD
+            if status_callback:
+                status_callback("Enviando Arquivo...")
+
+            uploader = ISSUploader(self.page, self.task_id)
+            uploader.upload_file(file_path)
+
+            # FASE 4: RESULTADOS
+            if status_callback:
+                status_callback("Lendo Resultados...")
+
+            parser = ISSResultParser(self.page, self.task_id)
+            resultado = parser.parse()
+
+            if status_callback:
+                status_callback("Concluído.")
+
+            return resultado
 
         except Exception as e:
             # Captura de erro fatal. O log 'exception' registra o traceback completo.
