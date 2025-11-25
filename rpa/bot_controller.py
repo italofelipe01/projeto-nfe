@@ -39,25 +39,56 @@ class ISSBot:
             logger.error(f"[{self.task_id}] {msg}")
             return {"success": False, "message": msg}
 
-        playwright = None
+        # Utilizamos o 'with' statement para garantir o fechamento correto e robusto
+        # do contexto do Playwright, chamando 'playwright.stop()' automaticamente.
         try:
-            playwright = sync_playwright().start()
+            with sync_playwright() as playwright:
+                launch_config = BROWSER_CONFIG.copy()
+                if self.is_dev_mode:
+                    launch_config["headless"] = False # Desativa o headless em modo dev
 
-            launch_config = BROWSER_CONFIG.copy()
-            if self.is_dev_mode:
-                launch_config["headless"] = False
+                # 1. Lançamento do Navegador
+                self.browser = playwright.chromium.launch(**launch_config)
 
-            self.browser = playwright.chromium.launch(**launch_config)
+                record_dir = None
+                if self.is_dev_mode:
+                    record_dir = f"rpa_logs/videos/{self.task_id}" # Configura gravação de vídeo
 
-            record_dir = None
-            if self.is_dev_mode:
-                record_dir = f"rpa_logs/videos/{self.task_id}"
+                # 2. Criação do Contexto e Página
+                self.context = self.browser.new_context(
+                    record_video_dir=record_dir, viewport={"width": 1280, "height": 720}
+                )
+                self.page = self.context.new_page()
+                self.page.set_default_timeout(DEFAULT_TIMEOUT)
 
-            self.context = self.browser.new_context(
-                record_video_dir=record_dir, viewport={"width": 1280, "height": 720}
-            )
-            self.page = self.context.new_page()
-            self.page.set_default_timeout(DEFAULT_TIMEOUT)
+                # FASE 1: LOGIN
+                if status_callback:
+                    status_callback("Realizando Login...")
+
+                user = creds.get("user")
+                password = creds.get("pass")
+                inscricao = creds.get("inscricao")
+
+                if not user or not password or not inscricao:
+                    # Lançamos uma exceção clara para credenciais incompletas
+                    raise ValueError(
+                        f"Credenciais incompletas para {inscricao_municipal} (Usuário, Senha ou Inscrição vazios)."
+                    )
+
+                auth = ISSAuthenticator(self.page, self.task_id)
+                if not auth.login(user, password):
+                    raise Exception("Falha na etapa de autenticação.")
+
+                # FASE 2: SELEÇÃO DE EMPRESA
+                if status_callback:
+                    status_callback("Selecionando Empresa...")
+
+                nav = ISSNavigator(self.page, self.task_id)
+                nav.select_contribuinte(inscricao) # Navega e seleciona o contribuinte
+
+                # FASE 3: UPLOAD
+                if status_callback:
+                    status_callback("Enviando Arquivo...")
 
             # FASE 1: LOGIN
             if status_callback:
@@ -103,21 +134,25 @@ class ISSBot:
             return resultado
 
         except Exception as e:
+            # Captura de erro fatal. O log 'exception' registra o traceback completo.
             logger.exception(f"[{self.task_id}] Erro fatal durante execução")
+            # Adicionamos uma nota nos detalhes de erro para auxiliar o usuário
+            # a identificar a causa raiz no ambiente de desenvolvimento.
             return {
                 "success": False,
                 "message": f"Erro técnico: {str(e)}",
-                "details": "Consulte os logs técnicos.",
+                "details": "Consulte os logs técnicos. Se o problema for 'EPIPE: broken pipe', pode ser causado pelo reinício abrupto do processo pelo Watchdog do Flask (Modo Debug).",
             }
 
         finally:
+            # O fechamento do contexto e navegador deve permanecer no 'finally' para garantir
+            # o cleanup das instâncias criadas dentro do 'try' antes que o 'with' finalize.
             logger.info(f"[{self.task_id}] Encerrando sessão.")
             if self.context:
                 self.context.close()
             if self.browser:
                 self.browser.close()
-            if playwright:
-                playwright.stop()
+            # 'playwright.stop()' é removido, pois o 'with sync_playwright()' garante isso.
 
 
 def run_rpa_process(
