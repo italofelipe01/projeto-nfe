@@ -13,10 +13,11 @@ import time
 from typing import Optional
 
 from playwright.sync_api import Browser, BrowserContext, Page, sync_playwright
+from playwright_stealth import stealth_sync
 
 # Módulos de configuração e utilitários
-from rpa.config_rpa import BROWSER_CONFIG, CREDENTIALS, DEFAULT_TIMEOUT
-from rpa.error_handler import PortalOfflineError
+from rpa.config_rpa import BROWSER_CONFIG, CREDENTIALS, LOGIN_TIMEOUT, USER_AGENT
+from rpa.error_handler import AuthenticationError, PortalOfflineError
 from rpa.utils import setup_logger
 
 # Módulos de Ação Especializados
@@ -86,7 +87,7 @@ class ISSBot:
             attempt += 1
             playwright = None
             try:
-                # --- FASE 0: INICIALIZAÇÃO DO NAVEGADOR ---
+                # --- FASE 0: INICIALIZAÇÃO DO NAVEGADORES ---
                 logger.debug(
                     f"[{self.task_id}] [Tentativa {attempt}] Iniciando Playwright..."
                 )
@@ -101,14 +102,25 @@ class ISSBot:
 
                 self.browser = playwright.chromium.launch(**launch_config)
 
-                # Configura gravação de vídeo apenas em modo de desenvolvimento
+                # --- Stealth Configuration ---
                 record_dir = f"rpa_logs/videos/{self.task_id}" if self.is_dev_mode else None
                 self.context = self.browser.new_context(
+                    user_agent=USER_AGENT,
+                    viewport={"width": 1920, "height": 1080},
+                    locale="pt-BR",
                     record_video_dir=record_dir,
-                    viewport={"width": 1280, "height": 720},
                 )
+                # Remove WebDriver fingerprint
+                self.context.add_init_script(
+                    "Object.defineProperty(navigator, 'webdriver', {get: () => undefined})"
+                )
+
                 self.page = self.context.new_page()
-                self.page.set_default_timeout(DEFAULT_TIMEOUT)
+                self.page.set_default_timeout(LOGIN_TIMEOUT)
+
+                # Apply stealth masking
+                stealth_sync(self.page)
+
 
                 # --- FASE 1: LOGIN ---
                 user, password, inscricao = (
@@ -173,8 +185,19 @@ class ISSBot:
                 time.sleep(wait_time)
                 # Continue para a próxima iteração do `while`
 
+            except AuthenticationError as e:
+                # Erro de autenticação é fatal e não deve ser retentado.
+                logger.error(f"[{self.task_id}] Falha de autenticação: {e}")
+                # A mensagem de erro já é amigável, vinda da exceção.
+                # A screenshot é tirada dentro do módulo de autenticação.
+                return {
+                    "success": False,
+                    "message": str(e),
+                    "details": "Verifique as credenciais ou procure por uma screenshot de depuração na pasta 'rpa_logs/debug_screenshots'.",
+                }
+
             except Exception as e:
-                # Erro fatal (negócio, código, autenticação) -> Aborta
+                # Erro fatal (negócio, código, etc.) -> Aborta
                 logger.exception(f"[{self.task_id}] Erro fatal durante a execução do robô.")
                 return {
                     "success": False,
