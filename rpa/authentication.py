@@ -7,13 +7,18 @@ Responsabilidade:
 2. Resolver o desafio do Teclado Virtual Dinâmico.
 3. Validar se o acesso foi concedido, reportando progresso detalhado.
 """
-
 import time
-from playwright.sync_api import Page
+from datetime import datetime
+from playwright.sync_api import Page, TimeoutError as PlaywrightTimeoutError
 from typing import Callable, Optional
 
 # Módulos de configuração e utilitários
-from rpa.config_rpa import SELECTORS, ISSNET_URL, DEFAULT_TIMEOUT
+from rpa.config_rpa import (
+    SELECTORS,
+    ISSNET_URL,
+    LOGIN_TIMEOUT,
+    DEBUG_SCREENSHOTS_DIR,
+)
 from rpa.error_handler import AuthenticationError
 from rpa.utils import setup_logger
 
@@ -38,6 +43,20 @@ class ISSAuthenticator:
         self.page = page
         self.task_id = task_id
 
+    def _take_debug_screenshot(self):
+        """Salva uma screenshot da tela atual para depuração."""
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        screenshot_path = (
+            DEBUG_SCREENSHOTS_DIR / f"login_failed_{self.task_id}_{timestamp}.png"
+        )
+        try:
+            self.page.screenshot(path=screenshot_path)
+            logger.info(f"[{self.task_id}] Screenshot de depuração salva em: {screenshot_path}")
+        except Exception as e:
+            logger.error(
+                f"[{self.task_id}] Falha ao salvar screenshot de depuração: {e}"
+            )
+
     def login(
         self,
         user: str,
@@ -58,16 +77,32 @@ class ISSAuthenticator:
         Raises:
             AuthenticationError: Se houver erro de credencial, bloqueio ou falha no processo.
         """
-        logger.info(f"[{self.task_id}] 🔐 Iniciando processo de autenticação para o usuário '{user[:4]}...'.")
+        logger.info(
+            f"[{self.task_id}] 🔐 Iniciando processo de autenticação para o usuário '{user[:4]}...'."
+        )
         if status_callback:
             status_callback("Realizando login...")
 
         try:
             # 1. Navegação Inicial
-            logger.debug(f"[{self.task_id}] Navegando para a página de login: {ISSNET_URL}")
+            logger.debug(
+                f"[{self.task_id}] Navegando para a página de login: {ISSNET_URL}"
+            )
             if status_callback:
                 status_callback("Navegando para o portal...")
-            self.page.goto(ISSNET_URL, timeout=DEFAULT_TIMEOUT)
+            self.page.goto(ISSNET_URL, timeout=LOGIN_TIMEOUT)
+
+            # --- Detecção de Cloudflare ---
+            page_title = self.page.title().lower()
+            page_content = self.page.content().lower()
+            if "challenge" in page_title or "just a moment" in page_content:
+                logger.warning(
+                    f"[{self.task_id}] Detecado desafio Cloudflare. Aguardando resolução automática..."
+                )
+                if status_callback:
+                    status_callback("Aguardando verificação de segurança...")
+                # Aumenta o tempo de espera para o Stealth lidar com o desafio
+                self.page.wait_for_timeout(15000)
 
             # 2. Preenchimento do Usuário
             logger.debug(f"[{self.task_id}] Preenchendo campo de usuário.")
@@ -76,6 +111,7 @@ class ISSAuthenticator:
             user_selector = SELECTORS["login"]["username_input"]
             self.page.wait_for_selector(user_selector, state="visible")
             self.page.fill(user_selector, user)
+            time.sleep(0.5)  # Pequena pausa para simular comportamento humano
 
             # 3. Resolução do Teclado Virtual (Senha)
             if status_callback:
@@ -88,45 +124,54 @@ class ISSAuthenticator:
                 status_callback("Enviando credenciais...")
             btn_submit = SELECTORS["login"]["submit_button"]
             self.page.click(btn_submit)
+            time.sleep(1) # Aguarda um momento para a página começar a reagir
 
             # 5. Validação do Sucesso
             logger.debug(f"[{self.task_id}] Aguardando redirecionamento pós-login...")
-            try:
-                self.page.wait_for_url("**/SelecionarContribuinte.aspx*", timeout=10000)
-                logger.info(f"[{self.task_id}] ✅ Login para o usuário '{user[:4]}...' realizado com sucesso!")
-                return True
-            except Exception:
-                # Se o redirecionamento falhar, verifica se há uma mensagem de erro explícita.
-                error_sel = SELECTORS["login"]["error_message"]
-                if self.page.locator(error_sel).is_visible():
-                    erro_msg = self.page.inner_text(error_sel).strip()
-                    logger.error(f"[{self.task_id}] Login recusado pelo portal: {erro_msg}")
-                    raise AuthenticationError(f"Falha no login: {erro_msg}")
+            self.page.wait_for_url("**/SelecionarContribuinte.aspx*", timeout=30000)
+            logger.info(
+                f"[{self.task_id}] ✅ Login para o usuário '{user[:4]}...' realizado com sucesso!"
+            )
+            return True
 
-                # Se não houver mensagem de erro, pode ser um timeout ou CAPTCHA.
-                logger.error(f"[{self.task_id}] Login falhou sem mensagem de erro clara (possível timeout ou CAPTCHA).")
-                raise AuthenticationError("Falha desconhecida no login (Timeout ou comportamento inesperado do portal).")
+        except PlaywrightTimeoutError:
+            logger.error(f"[{self.task_id}] Timeout ao aguardar redirecionamento pós-login.")
+            self._take_debug_screenshot()
+
+            # Verifica se há uma mensagem de erro explícita.
+            error_sel = SELECTORS["login"]["error_message"]
+            if self.page.locator(error_sel).is_visible():
+                erro_msg = self.page.inner_text(error_sel).strip()
+                logger.error(f"[{self.task_id}] Login recusado pelo portal: {erro_msg}")
+                raise AuthenticationError(f"Falha no login: {erro_msg}")
+
+            logger.error(
+                f"[{self.task_id}] Login falhou sem mensagem clara (possível timeout, CAPTCHA ou bloqueio)."
+            )
+            raise AuthenticationError(
+                "Falha no login (Timeout). O portal pode estar lento ou bloqueando o acesso."
+            )
 
         except Exception as e:
-            # Garante que qualquer exceção seja registrada e relançada como AuthenticationError
-            # para ser tratada pelo bot_controller.
+            logger.error(
+                f"[{self.task_id}] Erro técnico inesperado durante a autenticação: {str(e)}"
+            )
+            self._take_debug_screenshot()
             if isinstance(e, AuthenticationError):
-                raise  # Relança a exceção já tipada
-
-            logger.error(f"[{self.task_id}] Erro técnico inesperado durante a autenticação: {str(e)}")
+                raise
             raise AuthenticationError(f"Erro técnico durante o login: {str(e)}") from e
 
     def _resolver_teclado_virtual(self, password: str):
         """
         Lógica para lidar com o Teclado Virtual, que possui valores dinâmicos.
-        A automação lê os valores dos botões na tela e os clica na sequência correta.
         """
         keyboard_map = SELECTORS["login"]["virtual_keyboard"]
-        logger.debug(f"[{self.task_id}] Processando teclado virtual para senha de {len(password)} dígitos.")
+        logger.debug(
+            f"[{self.task_id}] Processando teclado virtual para senha de {len(password)} dígitos."
+        )
 
         for i, digit in enumerate(password):
             clicked = False
-            # Itera sobre os botões do teclado virtual (ex: 'btn1', 'btn2', ...)
             for btn_key, btn_selector in keyboard_map.items():
                 if btn_key == "limpar":
                     continue
@@ -135,18 +180,19 @@ class ISSAuthenticator:
                 if not button.is_visible():
                     continue
 
-                # Extrai o valor do botão (ex: "5 ou 3")
                 btn_value = button.get_attribute("value") or button.inner_text()
-
-                # Se o dígito da senha estiver contido no valor do botão, clica nele.
                 if digit in btn_value:
                     button.click()
-                    time.sleep(0.3)  # Simula um clique humano para evitar detecção
+                    time.sleep(0.3)
                     clicked = True
                     break
 
             if not clicked:
-                logger.error(f"[{self.task_id}] Teclado Virtual: Não foi possível encontrar um botão para o dígito '{digit}'.")
-                raise AuthenticationError(f"Erro no teclado virtual: Dígito '{digit}' não encontrado na tela.")
+                logger.error(
+                    f"[{self.task_id}] Teclado Virtual: Não foi possível encontrar um botão para o dígito '{digit}'."
+                )
+                raise AuthenticationError(
+                    f"Erro no teclado virtual: Dígito '{digit}' não encontrado."
+                )
 
         logger.info(f"[{self.task_id}] Teclado virtual processado com sucesso.")
