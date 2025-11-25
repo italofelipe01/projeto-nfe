@@ -23,9 +23,12 @@ RPA_DIR = Path(__file__).resolve().parent
 # Estrutura de Logs (Apenas Textuais)
 LOGS_DIR = PROJECT_ROOT / "rpa_logs"
 EXECUTION_LOGS_DIR = LOGS_DIR / "execution_logs"
+DEBUG_SCREENSHOTS_DIR = LOGS_DIR / "debug_screenshots"
 # Garante que os diretórios de log existam
 LOGS_DIR.mkdir(exist_ok=True)
 EXECUTION_LOGS_DIR.mkdir(exist_ok=True)
+DEBUG_SCREENSHOTS_DIR.mkdir(exist_ok=True)
+
 
 # Diretório de downloads/uploads (onde ficam os arquivos TXT gerados)
 DOWNLOADS_DIR = PROJECT_ROOT / "downloads"
@@ -73,23 +76,33 @@ FINAL_CREDENTIALS: Dict[str, CredentialData] = {
 # --- Configurações do Playwright ---
 RPA_MODE = os.getenv("RPA_MODE", "development")
 
+# Modern and realistic desktop Chrome user-agent
+USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+
+# Anti-detection browser arguments
+BROWSER_ARGS = [
+    "--disable-blink-features=AutomationControlled",  # Removes key automation flag
+    "--start-maximized",                              # Human-like behavior
+    "--no-sandbox",
+    "--disable-infobars",                             # Removes "Chrome is being controlled..."
+    "--disable-dev-shm-usage",
+    "--disable-extensions",
+    "--disable-gpu",                                  # Optional: improves stability in headless mode
+]
+
+
 PLAYWRIGHT_CONFIG: Dict[str, Any] = {
     "development": {
         "headless": False,  # Vê o navegador abrindo
-        "slow_mo": 800,  # Lento para debug visual
+        "slow_mo": 50,
         "devtools": False,
-        "args": ["--start-maximized"],
+        "args": BROWSER_ARGS,
     },
     "production": {
         "headless": True,  # Execução em background (mais rápido)
-        "slow_mo": 100,
+        "slow_mo": 0,
         "devtools": False,
-        "args": [
-            "--disable-blink-features=AutomationControlled",
-            "--no-sandbox",
-            "--disable-dev-shm-usage",
-            "--window-size=1920,1080",
-        ],
+        "args": BROWSER_ARGS,
     },
 }
 # O Python acessa o item 'RPA_MODE' para carregar a configuração, mas usamos Any para evitar tipagem complexa para BROWSER_CONFIG.
@@ -98,7 +111,8 @@ BROWSER_CONFIG: Dict[str, Any] = PLAYWRIGHT_CONFIG.get(
 )
 
 # --- Timeouts (em milissegundos) ---
-DEFAULT_TIMEOUT = int(os.getenv("RPA_TIMEOUT", "30")) * 1000
+DEFAULT_TIMEOUT = int(os.getenv("RPA_DEFAULT_TIMEOUT", "30000"))
+LOGIN_TIMEOUT = int(os.getenv("RPA_LOGIN_TIMEOUT", "60000"))
 NAVIGATION_TIMEOUT = 60000
 UPLOAD_TIMEOUT = 120000
 

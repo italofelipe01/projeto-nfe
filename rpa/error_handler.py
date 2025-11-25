@@ -29,6 +29,13 @@ class AuthenticationError(RPAError):
     pass
 
 
+class CredentialError(AuthenticationError):
+    """
+    Subclasse para erros específicos de credenciais não encontradas ou inválidas.
+    """
+    pass
+
+
 class NavigationError(RPAError):
     """
     Levantado quando o robô não encontra um elemento esperado durante a navegação.
