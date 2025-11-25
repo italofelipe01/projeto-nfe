@@ -50,3 +50,35 @@ def generate_txt_file(header_line, valid_lines, task_id):
     except Exception as e:
         print(f"Erro ao salvar arquivo TXT: {e}")
         return None, f"Erro ao salvar arquivo TXT final: {e}"
+
+
+def generate_error_report(error_details, task_id):
+    """
+    Escreve um arquivo .txt contendo os erros encontrados.
+    """
+    try:
+        if not error_details:
+            return None, None
+
+        timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+        filename = f"erros_{task_id[:8]}_{timestamp}.txt"
+        file_path = os.path.join(Config.DOWNLOADS_DIR, filename)
+
+        with open(file_path, "w", encoding="utf-8") as f:
+            f.write("RELATORIO DE ERROS DE PROCESSAMENTO\n")
+            f.write(f"Data/Hora: {timestamp}\n")
+            f.write("-" * 50 + "\n\n")
+
+            for item in error_details:
+                line_num = item["line"]
+                messages = item["errors"]
+                f.write(f"LINHA {line_num}:\n")
+                for msg in messages:
+                    f.write(f"  - {msg}\n")
+                f.write("\n")
+
+        return filename, None
+
+    except Exception as e:
+        print(f"Erro ao salvar arquivo de erros: {e}")
+        return None, f"Erro ao salvar arquivo de erros: {e}"

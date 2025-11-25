@@ -133,7 +133,10 @@
 
                 <div id="download-section">
                     <button id="download-btn" class="btn-primary">
-                        Baixar Arquivo TXT
+                        Baixar Arquivo TXT (Sucesso)
+                    </button>
+                    <button id="download-errors-btn" class="btn-secondary" style="display: none; margin-top: 10px; background-color: #C12033;">
+                        Baixar Relatório de Erros
                     </button>
                 </div>
                 <div id="rpa-section"
@@ -141,11 +144,12 @@
                     <h3>🤖 Automação de Envio (RPA)</h3>
                     <p>O arquivo foi gerado. Deseja que o robô tente enviar para o ISS.net?</p>
 
-                    <div class="form-check">
-                        <input class="form-check-input" type="checkbox" id="devModeCheck">
-                        <label class="form-check-label" for="devModeCheck">
-                            Modo Desenvolvedor (Ver o robô trabalhando na tela - Headful)
-                        </label>
+                    <div class="form-group">
+                        <label for="rpaModeSelector">Modo de Execução:</label>
+                        <select id="rpaModeSelector" class="config-select">
+                            <option value="prod">Produção - Headless (Rápido/Oculto)</option>
+                            <option value="dev">Desenvolvedor - Headful (Visual/Lento)</option>
+                        </select>
                     </div>
                     <br>
                     <button id="btnRunRPA" class="btn btn-warning">🚀 Executar Envio Automático</button>
