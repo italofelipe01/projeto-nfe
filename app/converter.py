@@ -15,7 +15,9 @@ from app.layout_config import COLUMN_MAPPING, BODY_FIELDS_ORDER
 from app import file_handler
 from app import transformers
 from app import validators
+from rpa.utils import setup_logger
 
+logger = setup_logger("app_converter")
 
 # --- Funções de Lógica de Negócio ---
 
@@ -223,7 +225,7 @@ def _validate_and_transform_row(row_data, mapping, decimal_separator, valida_dv)
             row_errors.append(err)
 
     except Exception as e:
-        print(f"Erro inesperado ao transformar linha: {e}")
+        logger.error(f"Erro inesperado ao transformar linha: {e}")
         row_errors.append(f"Erro interno de processamento: {e}")
 
     return transformed_row, row_errors
@@ -247,7 +249,7 @@ def _generate_header(form_data):
         return header_line, None
 
     except Exception as e:
-        print(f"Erro ao gerar cabeçalho: {e}")
+        logger.error(f"Erro ao gerar cabeçalho: {e}")
         return None, f"Erro ao gerar cabeçalho: {e}. Verifique os campos do formulário."
 
 
@@ -256,6 +258,8 @@ def _generate_header(form_data):
 
 def process_conversion(task_id, file_path, form_data, update_status_callback):
     # Ponto de entrada da conversão (chamado pelo main.py em um Thread).
+    logger.info(f"[{task_id}] Iniciando processo de conversão para: {file_path}")
+
     total_rows = 0
     success_count = 0
     error_count = 0
@@ -264,6 +268,7 @@ def process_conversion(task_id, file_path, form_data, update_status_callback):
     try:
         # --- ETAPA 1: Ler o Arquivo ---
         update_status_callback(task_id, "processing", 10, "Lendo arquivo...", "")
+        logger.debug(f"[{task_id}] Lendo arquivo de dados...")
 
         df, read_error = file_handler.read_data_file(file_path)
 
@@ -279,6 +284,7 @@ def process_conversion(task_id, file_path, form_data, update_status_callback):
 
         # --- ETAPA 2: Mapear Colunas ---
         update_status_callback(task_id, "processing", 20, "Verificando colunas...", "")
+        logger.debug(f"[{task_id}] Verificando mapeamento de colunas...")
 
         mapping, missing_cols = _find_column_mappings(df.columns)
 
@@ -290,6 +296,7 @@ def process_conversion(task_id, file_path, form_data, update_status_callback):
         update_status_callback(
             task_id, "processing", 25, "Verificando duplicatas...", ""
         )
+        logger.debug(f"[{task_id}] Verificando duplicatas...")
 
         # Define a chave de duplicidade (quais colunas definem uma "nota igual"?)
         # Usamos 'numero_documento' e 'cpf_cnpj_prestador' como chave.
@@ -319,6 +326,7 @@ def process_conversion(task_id, file_path, form_data, update_status_callback):
             "Iniciando validação...",
             f"Linha 0 de {total_rows}",
         )
+        logger.debug(f"[{task_id}] Iniciando validação de {total_rows} linhas.")
 
         valid_data_dicts = []
 
@@ -361,6 +369,7 @@ def process_conversion(task_id, file_path, form_data, update_status_callback):
 
         # --- ETAPA 4: Gerar Cabeçalho ---
         update_status_callback(task_id, "processing", 90, "Gerando cabeçalho...", "")
+        logger.debug(f"[{task_id}] Gerando cabeçalho do arquivo...")
         header_line, header_error = _generate_header(form_data)
         if header_error:
             raise Exception(header_error)
@@ -370,6 +379,7 @@ def process_conversion(task_id, file_path, form_data, update_status_callback):
 
         # --- ETAPA 5: Formatar Linhas e Gerar Arquivo TXT ---
         update_status_callback(task_id, "processing", 95, "Montando arquivo TXT...", "")
+        logger.debug(f"[{task_id}] Montando arquivo final...")
 
         final_txt_lines = []
         for row_dict in valid_data_dicts:
@@ -385,7 +395,17 @@ def process_conversion(task_id, file_path, form_data, update_status_callback):
         if write_error:
             raise Exception(write_error)
 
+        # GERA RELATÓRIO DE ERROS (se houver)
+        error_filename = None
+        if error_count > 0:
+            error_filename, err_gen = file_handler.generate_error_report(
+                error_details, task_id
+            )
+            if err_gen:
+                logger.warning(f"[{task_id}] Falha ao gerar relatório de erros: {err_gen}")
+
         # --- ETAPA 6: Sucesso ---
+        logger.info(f"[{task_id}] Conversão concluída com sucesso. Arquivo: {filename}")
         update_status_callback(
             task_id,
             "completed",
@@ -393,15 +413,17 @@ def process_conversion(task_id, file_path, form_data, update_status_callback):
             "Conversão Concluída!",
             "",
             filename=filename,
+            error_filename=error_filename,  # Passa o nome do arquivo de erros
             total=total_rows,
             success=success_count,
             errors=error_count,
             error_details=error_details,
+            meta_inscricao=form_data.get("inscricao_municipal"),
         )
 
     except Exception as e:
         # --- Tratamento de Erro Global ---
-        print(f"Erro na Tarefa {task_id}: {e}")
+        logger.exception(f"[{task_id}] Erro fatal na conversão: {e}")
         update_status_callback(
             task_id,
             "error",
