@@ -14,10 +14,12 @@ from werkzeug.utils import secure_filename
 from app.config import Config
 from app.converter import process_conversion
 from rpa.bot_controller import run_rpa_process
+from rpa.utils import setup_logger
 
 
 bp = Blueprint("main", __name__)
 conversions = {}
+logger = setup_logger("app_main")
 
 
 def load_configurations():
@@ -28,7 +30,7 @@ def load_configurations():
         df = pd.read_csv(csv_path)
         return df.to_dict("records")
     except Exception as e:
-        print(f"Erro ao ler CSV: {e}")
+        logger.error(f"Erro ao ler CSV: {e}")
         return []
 
 
@@ -58,6 +60,7 @@ def index():
 
 @bp.route("/upload", methods=["POST"])
 def upload_file():
+    logger.info("Recebendo requisição de upload.")
     if "file" not in request.files:
         return jsonify({"error": "Nenhum arquivo enviado"}), 400
 
@@ -75,6 +78,7 @@ def upload_file():
     file_path = os.path.join(current_app.config["UPLOADS_DIR"], saved_filename)
     os.makedirs(current_app.config["UPLOADS_DIR"], exist_ok=True)
     file.save(file_path)
+    logger.info(f"Arquivo salvo em: {file_path}")
 
     conversions[task_id] = {
         "status": "processing",
@@ -88,6 +92,7 @@ def upload_file():
         args=(task_id, file_path, form_data, update_task_status),
     )
     processor_thread.start()
+    logger.info(f"Tarefa de conversão {task_id} iniciada em background.")
 
     return jsonify({"task_id": task_id})
 
@@ -108,6 +113,51 @@ def download_file(filename):
         as_attachment=True,
     )
 
+
+# Dicionário separado para status do RPA
+rpa_tasks = {}
+
+def update_rpa_status(task_id, message, success=None, details=None):
+    """Callback para atualizar o status do RPA."""
+    if task_id in rpa_tasks:
+        rpa_tasks[task_id]["message"] = message
+        if success is not None:
+            rpa_tasks[task_id]["success"] = success
+        if details:
+            rpa_tasks[task_id]["details"] = details
+
+def rpa_worker(task_id, file_path, inscricao, is_dev):
+    """Wrapper para rodar o RPA em thread separada."""
+    logger.info(f"[{task_id}] Iniciando worker RPA para IM: {inscricao}")
+    try:
+        result = run_rpa_process(
+            task_id=task_id,
+            file_path=file_path,
+            inscricao_municipal=inscricao,
+            is_dev_mode=is_dev,
+            status_callback=lambda msg: update_rpa_status(task_id, msg)
+        )
+        # Atualiza status final baseado no retorno do bot
+        update_rpa_status(
+            task_id,
+            result.get("message", "Concluído"),
+            success=result.get("success", False),
+            details=result.get("details", "")
+        )
+    except Exception as e:
+        update_rpa_status(
+            task_id,
+            f"Erro Técnico: {str(e)}",
+            success=False,
+            details="Verifique os logs."
+        )
+
+@bp.route("/rpa/status/<task_id>")
+def rpa_status(task_id):
+    status = rpa_tasks.get(task_id)
+    if not status:
+        return jsonify({"success": False, "message": "Tarefa RPA não encontrada."}), 404
+    return jsonify(status)
 
 @bp.route("/rpa/execute", methods=["POST"])
 def execute_rpa():
@@ -136,13 +186,18 @@ def execute_rpa():
     is_dev = mode == "dev"
     rpa_task_id = str(uuid.uuid4())
 
-    try:
-        result = run_rpa_process(
-            task_id=rpa_task_id,
-            file_path=file_path,
-            inscricao_municipal=inscricao_municipal,
-            is_dev_mode=is_dev,
-        )
-        return jsonify(result)
-    except Exception as e:
-        return jsonify({"success": False, "message": str(e)}), 500
+    # Inicializa status
+    rpa_tasks[rpa_task_id] = {
+        "success": None,  # None = Em andamento
+        "message": "Inicializando...",
+        "details": ""
+    }
+
+    # Inicia Thread
+    thread = threading.Thread(
+        target=rpa_worker,
+        args=(rpa_task_id, file_path, inscricao_municipal, is_dev)
+    )
+    thread.start()
+
+    return jsonify({"success": True, "task_id": rpa_task_id, "message": "Robô iniciado."})
