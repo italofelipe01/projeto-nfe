@@ -108,10 +108,12 @@ class ISSBot:
                     vendor_override="Google Inc.",
                     webgl_vendor_override="Intel Inc.",
                     renderer_override="Intel Iris OpenGL Engine",
-                    fix_hairline=True
+                    fix_hairline=True,
                 )
 
-                record_dir = f"rpa_logs/videos/{self.task_id}" if self.is_dev_mode else None
+                record_dir = (
+                    f"rpa_logs/videos/{self.task_id}" if self.is_dev_mode else None
+                )
 
                 self.context = self.browser.new_context(
                     user_agent=USER_AGENT,
@@ -129,7 +131,6 @@ class ISSBot:
 
                 self.page = self.context.new_page()
                 self.page.set_default_timeout(LOGIN_TIMEOUT)
-
 
                 # --- FASE 1: LOGIN ---
                 user, password, inscricao = (
@@ -207,7 +208,9 @@ class ISSBot:
 
             except Exception as e:
                 # Erro fatal (negócio, código, etc.) -> Aborta
-                logger.exception(f"[{self.task_id}] Erro fatal durante a execução do robô.")
+                logger.exception(
+                    f"[{self.task_id}] Erro fatal durante a execução do robô."
+                )
                 return {
                     "success": False,
                     "message": f"Erro inesperado: {str(e)}",
@@ -232,6 +235,7 @@ class ISSBot:
             "message": "Ocorreu um erro inesperado no controle de tentativas.",
             "details": "O robô não conseguiu concluir a tarefa após todas as tentativas.",
         }
+
 
 def run_rpa_process(
     task_id: str,

@@ -402,7 +402,9 @@ def process_conversion(task_id, file_path, form_data, update_status_callback):
                 error_details, task_id
             )
             if err_gen:
-                logger.warning(f"[{task_id}] Falha ao gerar relatório de erros: {err_gen}")
+                logger.warning(
+                    f"[{task_id}] Falha ao gerar relatório de erros: {err_gen}"
+                )
 
         # --- ETAPA 6: Sucesso ---
         logger.info(f"[{task_id}] Conversão concluída com sucesso. Arquivo: {filename}")

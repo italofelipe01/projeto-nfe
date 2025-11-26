@@ -117,6 +117,7 @@ def download_file(filename):
 # Dicionário separado para status do RPA
 rpa_tasks = {}
 
+
 def update_rpa_status(task_id, message, success=None, details=None):
     """Callback para atualizar o status do RPA."""
     if task_id in rpa_tasks:
@@ -125,6 +126,7 @@ def update_rpa_status(task_id, message, success=None, details=None):
             rpa_tasks[task_id]["success"] = success
         if details:
             rpa_tasks[task_id]["details"] = details
+
 
 def rpa_worker(task_id, file_path, inscricao, is_dev):
     """Wrapper para rodar o RPA em thread separada."""
@@ -135,22 +137,23 @@ def rpa_worker(task_id, file_path, inscricao, is_dev):
             file_path=file_path,
             inscricao_municipal=inscricao,
             is_dev_mode=is_dev,
-            status_callback=lambda msg: update_rpa_status(task_id, msg)
+            status_callback=lambda msg: update_rpa_status(task_id, msg),
         )
         # Atualiza status final baseado no retorno do bot
         update_rpa_status(
             task_id,
             result.get("message", "Concluído"),
             success=result.get("success", False),
-            details=result.get("details", "")
+            details=result.get("details", ""),
         )
     except Exception as e:
         update_rpa_status(
             task_id,
             f"Erro Técnico: {str(e)}",
             success=False,
-            details="Verifique os logs."
+            details="Verifique os logs.",
         )
+
 
 @bp.route("/rpa/status/<task_id>")
 def rpa_status(task_id):
@@ -158,6 +161,7 @@ def rpa_status(task_id):
     if not status:
         return jsonify({"success": False, "message": "Tarefa RPA não encontrada."}), 404
     return jsonify(status)
+
 
 @bp.route("/rpa/execute", methods=["POST"])
 def execute_rpa():
@@ -190,14 +194,15 @@ def execute_rpa():
     rpa_tasks[rpa_task_id] = {
         "success": None,  # None = Em andamento
         "message": "Inicializando...",
-        "details": ""
+        "details": "",
     }
 
     # Inicia Thread
     thread = threading.Thread(
-        target=rpa_worker,
-        args=(rpa_task_id, file_path, inscricao_municipal, is_dev)
+        target=rpa_worker, args=(rpa_task_id, file_path, inscricao_municipal, is_dev)
     )
     thread.start()
 
-    return jsonify({"success": True, "task_id": rpa_task_id, "message": "Robô iniciado."})
+    return jsonify(
+        {"success": True, "task_id": rpa_task_id, "message": "Robô iniciado."}
+    )
