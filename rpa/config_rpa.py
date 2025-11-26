@@ -56,11 +56,13 @@ CREDENTIALS: Dict[Optional[str], CredentialData] = {
         "user": os.getenv("ISSNET_USER_1"),
         "pass": os.getenv("ISSNET_PASS_1"),
         "inscricao": os.getenv("ISSNET_INSCRICAO_1"),
+        "cnpj": os.getenv("ISSNET_CNPJ_1"),
     },
     os.getenv("ISSNET_INSCRICAO_2"): {
         "user": os.getenv("ISSNET_USER_2"),
         "pass": os.getenv("ISSNET_PASS_2"),
         "inscricao": os.getenv("ISSNET_INSCRICAO_2"),
+        "cnpj": os.getenv("ISSNET_CNPJ_2"),
     },
 }
 # Remove chaves que possam estar vazias (inscricoes não definidas no .env)
@@ -132,6 +134,8 @@ SELECTORS: Dict[str, Any] = {
         },
     },
     "selecao_empresa": {
+        "select_mes": "#ddlMes",
+        "select_ano": "#ddlAno",
         "input_inscricao": "#txtCae",
         "input_cnpj": "#TxtCPF",
         "btn_localizar": "#imbLocalizar",
