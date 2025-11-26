@@ -13,7 +13,7 @@ import time
 from typing import Optional
 
 from playwright.sync_api import Browser, BrowserContext, Page, sync_playwright
-from playwright-stealth import stealth_sync
+from playwright_stealth import Stealth
 
 # Módulos de configuração e utilitários
 from rpa.config_rpa import BROWSER_CONFIG, CREDENTIALS, LOGIN_TIMEOUT, USER_AGENT
@@ -103,13 +103,25 @@ class ISSBot:
                 self.browser = playwright.chromium.launch(**launch_config)
 
                 # --- Stealth Configuration ---
+                stealth = Stealth(
+                    navigator_languages_override=["pt-BR", "pt"],
+                    vendor_override="Google Inc.",
+                    webgl_vendor_override="Intel Inc.",
+                    renderer_override="Intel Iris OpenGL Engine",
+                    fix_hairline=True
+                )
+
                 record_dir = f"rpa_logs/videos/{self.task_id}" if self.is_dev_mode else None
+
                 self.context = self.browser.new_context(
                     user_agent=USER_AGENT,
                     viewport={"width": 1920, "height": 1080},
                     locale="pt-BR",
                     record_video_dir=record_dir,
                 )
+
+                stealth.apply_stealth_sync(self.context)
+
                 # Remove WebDriver fingerprint
                 self.context.add_init_script(
                     "Object.defineProperty(navigator, 'webdriver', {get: () => undefined})"
@@ -117,9 +129,6 @@ class ISSBot:
 
                 self.page = self.context.new_page()
                 self.page.set_default_timeout(LOGIN_TIMEOUT)
-
-                # Apply stealth masking
-                stealth_sync(self.page)
 
 
                 # --- FASE 1: LOGIN ---
