@@ -7,8 +7,8 @@ Responsabilidade:
 2. Selecionar a empresa correta (Contribuinte) no grid dinâmico após o login.
 3. Fornecer feedback de progresso claro durante a navegação.
 """
-from playwright.sync_api import Page
 import time
+from playwright.sync_api import Page
 
 # Módulos de configuração e utilitários
 from rpa.config_rpa import SELECTORS, DEFAULT_TIMEOUT, NAVIGATION_TIMEOUT, URLS
@@ -38,57 +38,66 @@ class ISSNavigator:
 
     def select_contribuinte(self, cnpj_alvo: str):
         """
-        Filtra e seleciona a empresa (contribuinte) na tela de seleção.
+        Filtra e seleciona a empresa (contribuinte) de forma robusta e dinâmica.
 
         Raises:
-            NavigationError: Se a empresa não for encontrada ou se ocorrer um erro na navegação.
+            NavigationError: Se a empresa não for encontrada ou se ocorrer um erro de navegação.
         """
-        logger.info(f"[{self.task_id}] 🏢 Selecionando empresa: {cnpj_alvo}")
+        logger.info(f"[{self.task_id}] 🏢 Iniciando seleção de empresa para o CNPJ: {cnpj_alvo}")
 
         try:
-            # 1. Limpa e Preenche Filtro
+            # 1. Filtro Robusto
             input_selector = SELECTORS["selecao_empresa"]["input_filtro_cnpj"]
-            self.page.wait_for_selector(input_selector)
-            self.page.fill(input_selector, "")
-            self.page.type(input_selector, cnpj_alvo, delay=100)
+            self.page.wait_for_selector(input_selector, state="visible", timeout=15000)
 
-            # 2. Clica em Localizar
-            logger.debug(f"[{self.task_id}] Filtrando...")
+            # Ações que simulam comportamento humano para JS
+            self.page.click(input_selector)
+            self.page.fill(input_selector, "")  # Garante que o campo esteja limpo
+            self.page.type(input_selector, cnpj_alvo, delay=100)
+            self.page.press(input_selector, "Tab")  # Dispara eventos onblur
+
+            logger.debug(f"[{self.task_id}] Filtro preenchido. Clicando em 'Localizar'...")
             self.page.click(SELECTORS["selecao_empresa"]["btn_localizar"])
 
-            # 3. Espera Inteligente pelo PostBack
-            # O sistema usa __doPostBack, que recarrega partes da página.
-            # Esperamos 1.5s fixos para o servidor processar + wait_for_selector do botão
-            logger.debug(f"[{self.task_id}] Aguardando PostBack do servidor...")
-            time.sleep(1.5)
+            # 2. Tratamento de PostBack ASP.NET
+            logger.debug(f"[{self.task_id}] Aguardando PostBack do servidor após filtro...")
+            time.sleep(2)  # Pausa para o início do request
+            self.page.wait_for_load_state("networkidle", timeout=15000)
 
-            btn_selector = SELECTORS["selecao_empresa"]["btn_selecionar_primeira_linha"]
+            # 3. Seleção Dinâmica de Linha
+            # Em vez de um seletor fixo, busca qualquer botão "Selecionar" visível
+            grid_selector = SELECTORS["selecao_empresa"]["grid_tabela"]
+            select_button_selector = f"{grid_selector} a[id*='imbSelecione']"
 
-            # Aguarda o botão da primeira linha aparecer
-            self.page.wait_for_selector(btn_selector, state="visible", timeout=10000)
+            logger.debug(
+                f"[{self.task_id}] Procurando por um botão de seleção com o seletor: '{select_button_selector}'"
+            )
 
-            # 4. Clica na Primeira Linha (agora garantida ser a correta)
-            logger.info(f"[{self.task_id}] Clicando no botão de seleção...")
-            self.page.click(btn_selector)
+            select_buttons = self.page.locator(select_button_selector)
 
-            # 5. Validação de Saída
-            # Aguarda sair da tela de seleção (URL muda ou elemento de filtro some)
-            logger.debug(f"[{self.task_id}] Validando redirecionamento após seleção...")
-            try:
-                self.page.wait_for_selector(
-                    SELECTORS["selecao_empresa"]["input_filtro_cnpj"],
-                    state="hidden",
-                    timeout=5000,
-                )
-            except Exception:
-                pass  # Se der timeout, a validação principal será a URL no controller
+            # Valida se algum resultado foi encontrado
+            if select_buttons.count() == 0:
+                raise NavigationError(f"Nenhuma empresa encontrada para o CNPJ '{cnpj_alvo}' após o filtro.")
 
-            logger.info(f"[{self.task_id}] ✅ Contribuinte selecionado com sucesso!")
+            logger.info(f"[{self.task_id}] Empresa encontrada. Clicando no primeiro botão de seleção disponível.")
+            select_buttons.first.click()
+
+            # 4. Validação de Sucesso
+            logger.debug(
+                f"[{self.task_id}] Validando redirecionamento para o painel principal..."
+            )
+            # A melhor validação é esperar o elemento da tela anterior (filtro) desaparecer.
+            self.page.wait_for_selector(
+                input_selector, state="hidden", timeout=15000
+            )
+
+            logger.info(f"[{self.task_id}] ✅ Contribuinte com CNPJ {cnpj_alvo} selecionado com sucesso!")
 
         except Exception as e:
-            logger.error(f"[{self.task_id}] ❌ Falha na seleção de empresa: {str(e)}")
+            logger.error(f"[{self.task_id}] ❌ Falha crítica na seleção de empresa: {str(e)}")
+            # Encapsula a exceção original para manter o rastreamento
             raise NavigationError(
-                f"Falha ao tentar selecionar a empresa com CNPJ {cnpj_alvo}."
+                f"Não foi possível selecionar a empresa com CNPJ {cnpj_alvo}. Verifique se o CNPJ está correto e associado ao login."
             ) from e
 
     def navigate_to_import_page(self) -> None:

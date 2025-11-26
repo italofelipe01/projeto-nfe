@@ -90,8 +90,15 @@ class ISSBot:
                 if status_callback:
                     status_callback("Selecionando Empresa...")
 
+                # Recupera o CNPJ para a seleção de empresa
+                cnpj = creds.get("cnpj")
+                if not cnpj:
+                    raise ValueError(
+                        f"CNPJ não encontrado nas credenciais para a Inscrição Municipal {inscricao_municipal}."
+                    )
+
                 nav = ISSNavigator(self.page, self.task_id)
-                nav.select_contribuinte(inscricao)
+                nav.select_contribuinte(cnpj)
 
                 # FASE 3: UPLOAD
                 if status_callback:
