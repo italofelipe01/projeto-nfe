@@ -13,7 +13,7 @@ import time
 from typing import Optional
 
 from playwright.sync_api import BrowserContext, Page, sync_playwright
-from playwright_stealth import stealth_sync
+from playwright_stealth import Stealth
 
 # Módulos de configuração e utilitários
 from rpa.config_rpa import (
@@ -132,8 +132,19 @@ class ISSBot:
                     else None,
                 )
 
-                # Aplica o stealth ao contexto
-                stealth_sync(self.context)
+                # --- Configuração do Stealth ---
+                # A classe Stealth é instanciada com os overrides desejados.
+                stealth = Stealth(
+                    navigator_languages_override=("pt-BR", "pt"),
+                    navigator_vendor_override="Google Inc.",
+                    webgl_vendor_override="Intel Inc.",
+                    webgl_renderer_override="Intel Iris OpenGL Engine",
+                    navigator_user_agent_override=USER_AGENT,
+                    hairline=True,
+                )
+
+                # Aplica as evasões de stealth ao contexto do navegador.
+                stealth.apply_stealth_sync(self.context)
 
                 # Garante que o fingerprint 'webdriver' seja removido
                 self.context.add_init_script(
