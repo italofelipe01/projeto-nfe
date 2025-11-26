@@ -85,7 +85,7 @@ BROWSER_ARGS = [
     "--start-maximized",
     "--no-sandbox",
     "--disable-infobars",
-    "--disable-dev-shm-usage"
+    "--disable-dev-shm-usage",
 ]
 
 

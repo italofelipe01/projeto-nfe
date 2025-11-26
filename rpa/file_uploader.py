@@ -46,7 +46,9 @@ class ISSUploader:
         Raises:
             ProcessingError: Se o arquivo for inválido ou se ocorrer um erro durante o upload.
         """
-        logger.info(f"[{self.task_id}] 📤 Iniciando processo de upload do arquivo: {Path(file_path).name}")
+        logger.info(
+            f"[{self.task_id}] 📤 Iniciando processo de upload do arquivo: {Path(file_path).name}"
+        )
 
         # --- Validação Preliminar do Arquivo ---
         is_valid, error_msg = validate_file_exists(file_path)
@@ -58,37 +60,55 @@ class ISSUploader:
             sels = SELECTORS["importacao"]
 
             # 1. Configuração de Opções (Checkbox Separador)
-            logger.debug(f"[{self.task_id}] Verificando e marcando o checkbox 'Separador Ponto e Vírgula'.")
+            logger.debug(
+                f"[{self.task_id}] Verificando e marcando o checkbox 'Separador Ponto e Vírgula'."
+            )
             chk_separador_locator = self.page.locator(sels["chk_separador"])
             if chk_separador_locator.is_visible():
                 chk_separador_locator.check()
-                logger.debug(f"[{self.task_id}] Checkbox 'Separador Ponto e Vírgula' marcado.")
+                logger.debug(
+                    f"[{self.task_id}] Checkbox 'Separador Ponto e Vírgula' marcado."
+                )
 
             # 2. Injeção do Arquivo
             logger.debug(f"[{self.task_id}] Injetando o arquivo no input oculto.")
             self.page.set_input_files(sels["input_arquivo"], str(file_path))
 
             # 3. Disparo do Envio
-            logger.info(f"[{self.task_id}] Clicando no botão 'Importar' para iniciar o processamento.")
+            logger.info(
+                f"[{self.task_id}] Clicando no botão 'Importar' para iniciar o processamento."
+            )
             self.page.click(sels["btn_importar"])
 
             # 4. Sincronização de Carregamento (Crítico)
             loading_sel = sels["loading_overlay"]
-            logger.debug(f"[{self.task_id}] Aguardando o início do processamento (overlay de loading).")
+            logger.debug(
+                f"[{self.task_id}] Aguardando o início do processamento (overlay de loading)."
+            )
             try:
                 # Espera o overlay de "Aguarde" aparecer.
                 self.page.wait_for_selector(loading_sel, state="visible", timeout=5000)
-                logger.debug(f"[{self.task_id}] Overlay de carregamento detectado. Aguardando desaparecimento.")
+                logger.debug(
+                    f"[{self.task_id}] Overlay de carregamento detectado. Aguardando desaparecimento."
+                )
             except PlaywrightTimeout:
                 # Se o overlay não aparecer, pode ser que o processo tenha sido instantâneo.
-                logger.warning(f"[{self.task_id}] Overlay de loading não foi detectado (pode ter sido muito rápido).")
+                logger.warning(
+                    f"[{self.task_id}] Overlay de loading não foi detectado (pode ter sido muito rápido)."
+                )
 
             # Espera o overlay de "Aguarde" desaparecer, indicando o fim do processamento.
             self.page.wait_for_selector(
                 loading_sel, state="detached", timeout=UPLOAD_TIMEOUT
             )
-            logger.info(f"[{self.task_id}] ✅ Processamento do arquivo no servidor finalizado com sucesso.")
+            logger.info(
+                f"[{self.task_id}] ✅ Processamento do arquivo no servidor finalizado com sucesso."
+            )
 
         except Exception as e:
-            logger.error(f"[{self.task_id}] ❌ Erro crítico durante o processo de upload: {str(e)}")
-            raise ProcessingError(f"Falha na etapa de upload do arquivo. O portal pode ter apresentado instabilidade.") from e
+            logger.error(
+                f"[{self.task_id}] ❌ Erro crítico durante o processo de upload: {str(e)}"
+            )
+            raise ProcessingError(
+                f"Falha na etapa de upload do arquivo. O portal pode ter apresentado instabilidade."
+            ) from e

@@ -33,6 +33,7 @@ class CredentialError(AuthenticationError):
     """
     Subclasse para erros específicos de credenciais não encontradas ou inválidas.
     """
+
     pass
 
 

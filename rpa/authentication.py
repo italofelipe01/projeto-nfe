@@ -51,7 +51,9 @@ class ISSAuthenticator:
         )
         try:
             self.page.screenshot(path=screenshot_path)
-            logger.info(f"[{self.task_id}] Screenshot de depuração salva em: {screenshot_path}")
+            logger.info(
+                f"[{self.task_id}] Screenshot de depuração salva em: {screenshot_path}"
+            )
         except Exception as e:
             logger.error(
                 f"[{self.task_id}] Falha ao salvar screenshot de depuração: {e}"
@@ -124,7 +126,7 @@ class ISSAuthenticator:
                 status_callback("Enviando credenciais...")
             btn_submit = SELECTORS["login"]["submit_button"]
             self.page.click(btn_submit)
-            time.sleep(1) # Aguarda um momento para a página começar a reagir
+            time.sleep(1)  # Aguarda um momento para a página começar a reagir
 
             # 5. Validação do Sucesso
             logger.debug(f"[{self.task_id}] Aguardando redirecionamento pós-login...")
@@ -135,7 +137,9 @@ class ISSAuthenticator:
             return True
 
         except PlaywrightTimeoutError:
-            logger.error(f"[{self.task_id}] Timeout ao aguardar redirecionamento pós-login.")
+            logger.error(
+                f"[{self.task_id}] Timeout ao aguardar redirecionamento pós-login."
+            )
             self._take_debug_screenshot()
 
             # Verifica se há uma mensagem de erro explícita.

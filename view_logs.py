@@ -6,6 +6,7 @@ from pathlib import Path
 PROJECT_ROOT = Path(__file__).resolve().parent
 LOGS_DIR = PROJECT_ROOT / "rpa_logs" / "execution_logs"
 
+
 def view_latest_log():
     if not LOGS_DIR.exists():
         print(f"Log directory not found: {LOGS_DIR}")
@@ -24,7 +25,7 @@ def view_latest_log():
     print(f"\n--- Reading Latest Log: {os.path.basename(latest_log)} ---\n")
 
     try:
-        with open(latest_log, 'r', encoding='utf-8') as f:
+        with open(latest_log, "r", encoding="utf-8") as f:
             content = f.read()
             if content:
                 print(content)
@@ -32,6 +33,7 @@ def view_latest_log():
                 print("[File is empty]")
     except Exception as e:
         print(f"Error reading log file: {e}")
+
 
 if __name__ == "__main__":
     view_latest_log()
