@@ -134,12 +134,12 @@ SELECTORS: Dict[str, Any] = {
         },
     },
     "selecao_empresa": {
+        "input_inscricao": "#txtCae",
         "input_filtro_cnpj": "#TxtCPF",
         "btn_localizar": "#imbLocalizar",
 
         # O seletor da linha específica foi removido.
         # A nova lógica em portal_navigator.py constrói o seletor dinamicamente.
-        "grid_tabela": "#dgEmpresas",
 
         # Validadores de carregamento
         "loading_overlay": "#divCarregando", # Padrão NotaControl, mesmo que oculto no HTML estático
