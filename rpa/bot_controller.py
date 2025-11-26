@@ -101,14 +101,25 @@ class ISSBot:
                     launch_config["headless"] = False
 
                 self.browser = playwright.chromium.launch(**launch_config)
-
-                # --- Stealth Configuration ---
+                
+                # --- Stealth Configuration (Corrigido) ---
+                # Baseado na análise do arquivo stealth.py original
                 stealth = Stealth(
-                    navigator_languages_override=["pt-BR", "pt"],
-                    vendor_override="Google Inc.",
+                    # 1. Configurações de Identidade (Overrides)
+                    navigator_languages_override=("pt-BR", "pt"),
+                    navigator_vendor_override="Google Inc.",
                     webgl_vendor_override="Intel Inc.",
-                    renderer_override="Intel Iris OpenGL Engine",
-                    fix_hairline=True,
+                    webgl_renderer_override="Intel Iris OpenGL Engine",
+                    
+                    # 2. Ativação de Evasões (Booleans)
+                    # Nota: 'webgl_vendor' é o switch (liga/desliga), o valor vai no override acima.
+                    webgl_vendor=True,  
+                    
+                    # Nota: O nome correto do parâmetro na lib é 'hairline', não 'fix_hairline'
+                    hairline=True,
+                    
+                    # Opcional: Se quiser garantir que o User Agent bata com o header
+                    navigator_user_agent_override=USER_AGENT 
                 )
 
                 record_dir = (
