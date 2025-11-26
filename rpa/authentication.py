@@ -94,24 +94,43 @@ class ISSAuthenticator:
                 status_callback("Navegando para o portal...")
             self.page.goto(ISSNET_URL, timeout=LOGIN_TIMEOUT)
 
-            # --- Detecção de Cloudflare ---
-            page_title = self.page.title().lower()
-            page_content = self.page.content().lower()
-            if "challenge" in page_title or "just a moment" in page_content:
-                logger.warning(
-                    f"[{self.task_id}] Detecado desafio Cloudflare. Aguardando resolução automática..."
+            # --- Detecção e Espera Passiva do Cloudflare ---
+            user_selector = SELECTORS["login"]["username_input"]
+            try:
+                # Espera o seletor do login aparecer. Se aparecer, o Cloudflare já foi resolvido.
+                self.page.wait_for_selector(
+                    user_selector, state="visible", timeout=LOGIN_TIMEOUT
                 )
-                if status_callback:
-                    status_callback("Aguardando verificação de segurança...")
-                # Aumenta o tempo de espera para o Stealth lidar com o desafio
-                self.page.wait_for_timeout(15000)
+                logger.info(f"[{self.task_id}] Página de login carregada com sucesso.")
+
+            except PlaywrightTimeoutError:
+                # Se o seletor não aparecer, verifica se é por causa do Cloudflare
+                page_title = self.page.title().lower()
+                if "just a moment" in page_title or "challenge" in page_title:
+                    logger.warning(
+                        f"[{self.task_id}] Desafio Cloudflare detectado. Aguardando resolução passivamente..."
+                    )
+                    if status_callback:
+                        status_callback("Aguardando verificação de segurança...")
+
+                    # Espera passiva: aguarda a URL mudar OU o seletor de login aparecer,
+                    # o que acontecer primeiro. O timeout aqui deve ser generoso.
+                    self.page.wait_for_selector(
+                        user_selector, state="visible", timeout=120000
+                    )
+                    logger.info(
+                        f"[{self.task_id}] Desafio Cloudflare resolvido. Prosseguindo com o login."
+                    )
+                else:
+                    # Se não é Cloudflare, é um erro de timeout genuíno.
+                    raise AuthenticationError(
+                        "Timeout ao carregar a página de login. O portal pode estar offline."
+                    )
 
             # 2. Preenchimento do Usuário
             logger.debug(f"[{self.task_id}] Preenchendo campo de usuário.")
             if status_callback:
                 status_callback("Inserindo usuário...")
-            user_selector = SELECTORS["login"]["username_input"]
-            self.page.wait_for_selector(user_selector, state="visible")
             self.page.fill(user_selector, user)
             time.sleep(0.5)  # Pequena pausa para simular comportamento humano
 
