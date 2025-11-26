@@ -12,11 +12,17 @@ Responsabilidade:
 import time
 from typing import Optional
 
-from playwright.sync_api import Browser, BrowserContext, Page, sync_playwright
-from playwright_stealth import Stealth
+from playwright.sync_api import BrowserContext, Page, sync_playwright
+from playwright_stealth import stealth_sync
 
 # Módulos de configuração e utilitários
-from rpa.config_rpa import BROWSER_CONFIG, CREDENTIALS, LOGIN_TIMEOUT, USER_AGENT
+from rpa.config_rpa import (
+    BROWSER_ARGS,
+    BROWSER_CONFIG,
+    CREDENTIALS,
+    LOGIN_TIMEOUT,
+    USER_AGENT,
+)
 from rpa.error_handler import AuthenticationError, PortalOfflineError
 from rpa.utils import setup_logger
 
@@ -45,7 +51,6 @@ class ISSBot:
         """
         self.task_id = task_id
         self.is_dev_mode = is_dev_mode
-        self.browser: Optional[Browser] = None
         self.context: Optional[BrowserContext] = None
         self.page: Optional[Page] = None
 
@@ -96,51 +101,49 @@ class ISSBot:
 
                 playwright = sync_playwright().start()
 
-                launch_config = BROWSER_CONFIG.copy()
+                # --- FASE 0: INICIALIZAÇÃO PERSISTENTE E STEALTH ---
+                logger.debug(
+                    f"[{self.task_id}] [Tentativa {attempt}] Iniciando Playwright com contexto persistente..."
+                )
+                if status_callback:
+                    status_callback(
+                        f"Conectando ao portal de forma segura (Tentativa {attempt})..."
+                    )
+
+                # Diretório para armazenar a sessão do navegador
+                user_data_dir = "./chrome_user_data"
+
+                # A configuração 'headless' agora respeita o config_rpa.py
+                # O 'is_dev_mode' ainda pode forçar 'headful' se a config estiver 'headless'
+                is_headless = BROWSER_CONFIG.get("headless", True)
                 if self.is_dev_mode:
-                    launch_config["headless"] = False
+                    is_headless = False
 
-                self.browser = playwright.chromium.launch(**launch_config)
-                
-                # --- Stealth Configuration (Corrigido) ---
-                # Baseado na análise do arquivo stealth.py original
-                stealth = Stealth(
-                    # 1. Configurações de Identidade (Overrides)
-                    navigator_languages_override=("pt-BR", "pt"),
-                    navigator_vendor_override="Google Inc.",
-                    webgl_vendor_override="Intel Inc.",
-                    webgl_renderer_override="Intel Iris OpenGL Engine",
-                    
-                    # 2. Ativação de Evasões (Booleans)
-                    # Nota: 'webgl_vendor' é o switch (liga/desliga), o valor vai no override acima.
-                    webgl_vendor=True,  
-                    
-                    # Nota: O nome correto do parâmetro na lib é 'hairline', não 'fix_hairline'
-                    hairline=True,
-                    
-                    # Opcional: Se quiser garantir que o User Agent bata com o header
-                    navigator_user_agent_override=USER_AGENT 
-                )
-
-                record_dir = (
-                    f"rpa_logs/videos/{self.task_id}" if self.is_dev_mode else None
-                )
-
-                self.context = self.browser.new_context(
+                self.context = playwright.chromium.launch_persistent_context(
+                    user_data_dir,
+                    headless=is_headless,
+                    channel="chrome",  # Usa o Chrome instalado, não o Chromium
+                    args=BROWSER_ARGS,
                     user_agent=USER_AGENT,
                     viewport={"width": 1920, "height": 1080},
                     locale="pt-BR",
-                    record_video_dir=record_dir,
+                    record_video_dir=f"rpa_logs/videos/{self.task_id}"
+                    if self.is_dev_mode
+                    else None,
                 )
 
-                stealth.apply_stealth_sync(self.context)
+                # Aplica o stealth ao contexto
+                stealth_sync(self.context)
 
-                # Remove WebDriver fingerprint
+                # Garante que o fingerprint 'webdriver' seja removido
                 self.context.add_init_script(
                     "Object.defineProperty(navigator, 'webdriver', {get: () => undefined})"
                 )
 
-                self.page = self.context.new_page()
+                # Usa a primeira página que já vem com o contexto ou cria uma nova
+                self.page = (
+                    self.context.pages[0] if self.context.pages else self.context.new_page()
+                )
                 self.page.set_default_timeout(LOGIN_TIMEOUT)
 
                 # --- FASE 1: LOGIN ---
@@ -235,8 +238,6 @@ class ISSBot:
                 )
                 if self.context:
                     self.context.close()
-                if self.browser:
-                    self.browser.close()
                 if playwright:
                     playwright.stop()
 
