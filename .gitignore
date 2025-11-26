@@ -1,6 +1,7 @@
 # Arquivos gerados
 downloads/
 uploads/
+chrome_user_data/
 
 # Ambiente virtual
 venv/
