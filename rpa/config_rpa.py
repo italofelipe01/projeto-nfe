@@ -134,12 +134,18 @@ SELECTORS: Dict[str, Any] = {
         },
     },
     "selecao_empresa": {
-        "select_mes": "#ddlMes",
-        "select_ano": "#ddlAno",
-        "input_inscricao": "#txtCae",
-        "input_cnpj": "#TxtCPF",
+        "input_filtro_cnpj": "#TxtCPF",
         "btn_localizar": "#imbLocalizar",
-        "loading_overlay": "#loading",
+
+        # CORREÇÃO CRÍTICA BASEADA NO HTML:
+        # 1. Alvo é 'a' (link), não 'input'.
+        # 2. Busca por 'imbSelecione' no ID.
+        # 3. Pega a tr[2] (primeira linha de dados, pois tr[1] é o cabeçalho).
+        "btn_selecionar_primeira_linha": "xpath=//*[@id='dgEmpresas']//tr[2]//a[contains(@id,'imbSelecione')]",
+
+        # Validadores de carregamento
+        "grid_tabela": "#dgEmpresas",
+        "loading_overlay": "#divCarregando", # Padrão NotaControl, mesmo que oculto no HTML estático
     },
     "importacao": {
         # O input para injeção de arquivo (file_uploader.py)
