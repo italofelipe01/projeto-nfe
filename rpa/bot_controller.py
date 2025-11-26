@@ -13,7 +13,7 @@ import time
 from typing import Optional
 
 from playwright.sync_api import Browser, BrowserContext, Page, sync_playwright
-from playwright_stealth import stealth_sync
+from playwright-stealth import stealth_sync
 
 # Módulos de configuração e utilitários
 from rpa.config_rpa import BROWSER_CONFIG, CREDENTIALS, LOGIN_TIMEOUT, USER_AGENT
