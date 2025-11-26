@@ -158,42 +158,41 @@ class ISSBot:
                 self.page.set_default_timeout(LOGIN_TIMEOUT)
 
                 # --- FASE 1: LOGIN ---
-                user, password, inscricao = (
+                user, password, inscricao, cnpj = (
                     creds.get("user"),
                     creds.get("pass"),
                     creds.get("inscricao"),
+                    creds.get("cnpj"),
                 )
-                if not all([user, password, inscricao]):
+                if not all([user, password, inscricao, cnpj]):
                     raise ValueError(
-                        f"Credenciais incompletas para {inscricao_municipal} (Usuário, Senha ou Inscrição vazios)."
+                        f"Credenciais incompletas para {inscricao_municipal} (Usuário, Senha, Inscrição ou CNPJ vazios)."
                     )
 
                 auth = ISSAuthenticator(self.page, self.task_id)
-                # O callback é passado para o método de login para granularidade
                 auth.login(user, password, status_callback)
 
                 # --- FASE 2: SELEÇÃO DE EMPRESA ---
                 if status_callback:
                     status_callback("Selecionando empresa...")
 
-                # Recupera o CNPJ para a seleção de empresa
-                cnpj = creds.get("cnpj")
-                if not cnpj:
-                    raise ValueError(
-                        f"CNPJ não encontrado nas credenciais para a Inscrição Municipal {inscricao_municipal}."
-                    )
-
                 nav = ISSNavigator(self.page, self.task_id)
-                nav.select_contribuinte(cnpj)
+                nav.select_contribuinte(inscricao, cnpj)
 
-                # --- FASE 3: UPLOAD ---
+                # --- FASE 3: NAVEGAÇÃO PÓS-SELEÇÃO ---
+                # A seleção agora leva para a home, então a navegação é explícita.
+                if status_callback:
+                    status_callback("Navegando para a página de importação...")
+                nav.navigate_to_import_page()
+
+                # --- FASE 4: UPLOAD ---
                 if status_callback:
                     status_callback("Enviando arquivo...")
 
                 uploader = ISSUploader(self.page, self.task_id)
                 uploader.upload_file(file_path)
 
-                # --- FASE 4: LEITURA DE RESULTADOS ---
+                # --- FASE 5: LEITURA DE RESULTADOS ---
                 if status_callback:
                     status_callback("Analisando resultados...")
 
