@@ -9,8 +9,9 @@ Responsabilidade:
 """
 import time
 from datetime import datetime
-from playwright.sync_api import Page, TimeoutError as PlaywrightTimeoutError
 from typing import Callable, Optional
+from playwright.sync_api import Page, TimeoutError as PlaywrightTimeoutError
+
 
 # Módulos de configuração e utilitários
 from rpa.config_rpa import (
@@ -147,33 +148,37 @@ class ISSAuthenticator:
             self.page.click(btn_submit)
             time.sleep(1)  # Aguarda um momento para a página começar a reagir
 
-            # 5. Validação do Sucesso
-            logger.debug(f"[{self.task_id}] Aguardando redirecionamento pós-login...")
-            self.page.wait_for_url("**/SelecionarContribuinte.aspx*", timeout=30000)
+            # 5. Validação do Sucesso (Element-Based)
+            logger.debug(
+                f"[{self.task_id}] Validando sucesso do login pela presença do filtro de CNPJ..."
+            )
+            success_selector = SELECTORS["selecao_empresa"]["input_filtro_cnpj"]
+            self.page.wait_for_selector(
+                success_selector, state="visible", timeout=30000
+            )
+
             logger.info(
-                f"[{self.task_id}] ✅ Login para o usuário '{user[:4]}...' realizado com sucesso!"
+                f"[{self.task_id}] ✅ Login para o usuário '{user[:4]}...' validado com sucesso!"
             )
             return True
 
         except PlaywrightTimeoutError:
-            logger.error(
-                f"[{self.task_id}] Timeout ao aguardar redirecionamento pós-login."
-            )
             self._take_debug_screenshot()
+            # Após um timeout, a primeira suspeita é uma falha de login explícita.
+            error_selector = SELECTORS["login"]["error_message"]
+            error_locator = self.page.locator(error_selector)
 
-            # Verifica se há uma mensagem de erro explícita.
-            error_sel = SELECTORS["login"]["error_message"]
-            if self.page.locator(error_sel).is_visible():
-                erro_msg = self.page.inner_text(error_sel).strip()
-                logger.error(f"[{self.task_id}] Login recusado pelo portal: {erro_msg}")
-                raise AuthenticationError(f"Falha no login: {erro_msg}")
+            # Verifica se o elemento de erro está visível sem esperar mais.
+            if error_locator.is_visible():
+                error_message = error_locator.inner_text().strip()
+                logger.error(f"[{self.task_id}] Login falhou com a mensagem: '{error_message}'")
+                raise AuthenticationError(f"Falha no login: {error_message}")
 
+            # Se não houver mensagem de erro, o problema é um timeout genuíno.
             logger.error(
-                f"[{self.task_id}] Login falhou sem mensagem clara (possível timeout, CAPTCHA ou bloqueio)."
+                f"[{self.task_id}] Timeout ao esperar pela tela de seleção de empresa. O portal pode estar lento, ou o login falhou sem uma mensagem clara."
             )
-            raise AuthenticationError(
-                "Falha no login (Timeout). O portal pode estar lento ou bloqueando o acesso."
-            )
+            raise AuthenticationError("Falha no login (Timeout). O portal pode estar instável ou bloqueando o acesso.")
 
         except Exception as e:
             logger.error(

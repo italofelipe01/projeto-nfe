@@ -137,14 +137,11 @@ SELECTORS: Dict[str, Any] = {
         "input_filtro_cnpj": "#TxtCPF",
         "btn_localizar": "#imbLocalizar",
 
-        # CORREÇÃO CRÍTICA BASEADA NO HTML:
-        # 1. Alvo é 'a' (link), não 'input'.
-        # 2. Busca por 'imbSelecione' no ID.
-        # 3. Pega a tr[2] (primeira linha de dados, pois tr[1] é o cabeçalho).
-        "btn_selecionar_primeira_linha": "xpath=//*[@id='dgEmpresas']//tr[2]//a[contains(@id,'imbSelecione')]",
+        # O seletor da linha específica foi removido.
+        # A nova lógica em portal_navigator.py constrói o seletor dinamicamente.
+        "grid_tabela": "#dgEmpresas",
 
         # Validadores de carregamento
-        "grid_tabela": "#dgEmpresas",
         "loading_overlay": "#divCarregando", # Padrão NotaControl, mesmo que oculto no HTML estático
     },
     "importacao": {
