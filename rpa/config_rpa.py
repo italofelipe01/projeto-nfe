@@ -99,7 +99,7 @@ PLAYWRIGHT_CONFIG: Dict[str, Any] = {
         "args": BROWSER_ARGS,
     },
     "production": {
-        "headless": True,  # Execução em background (mais rápido)
+        "headless": False,  # Alterado para False para depurar desafios Cloudflare
         "slow_mo": 0,
         "devtools": False,
         "args": BROWSER_ARGS,
