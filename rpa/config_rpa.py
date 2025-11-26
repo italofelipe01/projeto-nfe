@@ -81,13 +81,11 @@ USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTM
 
 # Anti-detection browser arguments
 BROWSER_ARGS = [
-    "--disable-blink-features=AutomationControlled",  # Removes key automation flag
-    "--start-maximized",                              # Human-like behavior
+    "--disable-blink-features=AutomationControlled",
+    "--start-maximized",
     "--no-sandbox",
-    "--disable-infobars",                             # Removes "Chrome is being controlled..."
-    "--disable-dev-shm-usage",
-    "--disable-extensions",
-    "--disable-gpu",                                  # Optional: improves stability in headless mode
+    "--disable-infobars",
+    "--disable-dev-shm-usage"
 ]
 
 
