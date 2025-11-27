@@ -27,7 +27,8 @@ def load_configurations():
         csv_path = os.path.join(Config.PROJECT_ROOT, "configuracoes.csv")
         if not os.path.exists(csv_path):
             return []
-        df = pd.read_csv(csv_path)
+        # Lê o CSV com separador ponto e vírgula e garante que todos os campos sejam strings
+        df = pd.read_csv(csv_path, sep=";", dtype=str)
         return df.to_dict("records")
     except Exception as e:
         logger.error(f"Erro ao ler CSV: {e}")
