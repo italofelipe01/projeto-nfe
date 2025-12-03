@@ -274,7 +274,20 @@ def process_conversion(task_id, file_path, form_data, update_status_callback):
         df, read_error = file_handler.read_data_file(file_path)
 
         if read_error:
-            raise Exception(read_error)
+            # Propaga o erro para a tabela de erros
+            error_details.append({"line": "Arquivo", "errors": [read_error]})
+            error_count += 1
+            # Força o status de erro na interface
+            update_status_callback(
+                task_id,
+                "error",
+                100,
+                "Erro na Leitura do Arquivo",
+                read_error,
+                error_details=error_details,
+                errors=error_count,
+            )
+            return
 
         if df is None:
             raise Exception("Erro desconhecido: O DataFrame não foi carregado.")

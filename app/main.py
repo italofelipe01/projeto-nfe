@@ -29,7 +29,19 @@ def load_configurations():
             return []
         # Lê o CSV com separador ponto e vírgula e garante que todos os campos sejam strings
         df = pd.read_csv(csv_path, sep=";", dtype=str)
-        return df.to_dict("records")
+        records = df.to_dict("records")
+
+        # Formata o CNPJ para exibição
+        for record in records:
+            cnpj = record.get("cnpj", "")
+            if len(cnpj) == 14:
+                record["cnpj_formatted"] = (
+                    f"{cnpj[:2]}.{cnpj[2:5]}.{cnpj[5:8]}/{cnpj[8:12]}-{cnpj[12:]}"
+                )
+            else:
+                record["cnpj_formatted"] = cnpj
+
+        return records
     except Exception as e:
         logger.error(f"Erro ao ler CSV: {e}")
         return []

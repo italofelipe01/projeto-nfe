@@ -39,6 +39,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // Seletores dos campos do formulário
     const configSelector = document.getElementById('config-selector');
     const inscricaoInput = document.getElementById('inscricao_municipal');
+    const cnpjInput = document.getElementById('cnpj_tomador');
     const mesInput = document.getElementById('mes');
     const anoInput = document.getElementById('ano');
     const razaoInput = document.getElementById('razao_social');
@@ -120,9 +121,11 @@ document.addEventListener('DOMContentLoaded', () => {
         const selectedOption = configSelector.options[configSelector.selectedIndex];
         const razao = selectedOption.getAttribute('data-razao') || '';
         const inscricao = selectedOption.getAttribute('data-inscricao') || '';
+        const cnpj = selectedOption.getAttribute('data-cnpj') || '';
 
         razaoInput.value = razao;
         inscricaoInput.value = inscricao;
+        cnpjInput.value = cnpj;
 
         const now = new Date();
         now.setMonth(now.getMonth() - 1);
