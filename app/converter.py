@@ -277,7 +277,7 @@ def process_conversion(task_id, file_path, form_data, update_status_callback):
             # Propaga o erro para a tabela de erros
             error_details.append({"line": "Arquivo", "errors": [read_error]})
             error_count += 1
-            # Força o status de erro na interface, passando a mensagem correta em 'msg'
+            # Força o status de erro na interface
             update_status_callback(
                 task_id,
                 "error",
