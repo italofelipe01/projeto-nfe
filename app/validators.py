@@ -146,6 +146,10 @@ def validate_date_format(value, is_required=True):
 
     val_str = str(value).strip()
 
+    # Tenta remover a parte de hora se houver (ex: "2025-10-25 00:00:00" -> "2025-10-25")
+    if " " in val_str:
+        val_str = val_str.split(" ")[0]
+
     # Lista de formatos aceitos
     # O formato '%d/%m/%Y' garante dia/mês/ano com 4 dígitos
     formats = ["%d/%m/%Y", "%Y-%m-%d", "%d-%m-%Y"]
