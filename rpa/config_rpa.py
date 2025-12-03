@@ -9,6 +9,7 @@ Define a arquitetura de acesso a credenciais multi-empresa.
 from typing import Dict, Any, Optional
 
 import os
+import csv
 from pathlib import Path
 from dotenv import load_dotenv
 
@@ -51,22 +52,61 @@ URLS: Dict[str, str] = {
 
 # Define um tipo auxiliar para as credenciais de uma única empresa
 CredentialData = Dict[str, Optional[str]]
-CREDENTIALS: Dict[Optional[str], CredentialData] = {
-    os.getenv("ISSNET_INSCRICAO_1"): {
-        "user": os.getenv("ISSNET_USER_1"),
-        "pass": os.getenv("ISSNET_PASS_1"),
-        "inscricao": os.getenv("ISSNET_INSCRICAO_1"),
-        "cnpj": os.getenv("ISSNET_CNPJ_1"),
-    },
-    os.getenv("ISSNET_INSCRICAO_2"): {
-        "user": os.getenv("ISSNET_USER_2"),
-        "pass": os.getenv("ISSNET_PASS_2"),
-        "inscricao": os.getenv("ISSNET_INSCRICAO_2"),
-        "cnpj": os.getenv("ISSNET_CNPJ_2"),
-    },
-}
-# Remove chaves que possam estar vazias (inscricoes não definidas no .env)
-# Isso simplifica o dicionário e o acesso posterior.
+
+# --- Carregamento de Credenciais (Híbrido: .env + CSV) ---
+
+# 1. Carrega Credenciais Globais (Master Login) do .env
+GLOBAL_USER = os.getenv("ISSNET_USER")
+GLOBAL_PASS = os.getenv("ISSNET_PASS")
+
+
+def load_companies_from_csv() -> Dict[str, CredentialData]:
+    """
+    Lê o arquivo configuracoes.csv e constrói o dicionário de credenciais.
+    Combina o login global (.env) com os dados específicos da empresa (CSV).
+    """
+    csv_path = PROJECT_ROOT / "configuracoes.csv"
+    credentials_map: Dict[str, CredentialData] = {}
+
+    if not csv_path.exists():
+        print(f"⚠️ Aviso: Arquivo {csv_path} não encontrado.")
+        return {}
+
+    try:
+        with open(csv_path, mode="r", encoding="utf-8") as f:
+            # Assume que o CSV usa ponto e vírgula como separador
+            reader = csv.DictReader(f, delimiter=";")
+
+            for row in reader:
+                inscricao = row.get("inscricao_municipal")
+                cnpj = row.get("cnpj")
+
+                if inscricao:
+                    # Remove formatação se houver (apenas números)
+                    inscricao_clean = "".join(filter(str.isdigit, inscricao))
+
+                    # Popula o dicionário usando a Inscrição como chave
+                    credentials_map[inscricao_clean] = {
+                        "user": GLOBAL_USER,
+                        "pass": GLOBAL_PASS,
+                        "inscricao": inscricao_clean,
+                        "cnpj": cnpj, # Mantém formatação do CNPJ se vier do CSV ou limpa se necessário
+                    }
+
+                    # Também mapeia pela inscrição original (com formatação) caso venha assim do frontend
+                    if inscricao != inscricao_clean:
+                        credentials_map[inscricao] = credentials_map[inscricao_clean]
+
+    except Exception as e:
+        print(f"⚠️ Erro ao ler configuracoes.csv: {e}")
+
+    return credentials_map
+
+
+# Carrega as credenciais dinamicamente
+CREDENTIALS: Dict[Optional[str], CredentialData] = load_companies_from_csv()
+
+# Remove chaves que possam estar vazias
 CREDENTIALS = {k: v for k, v in CREDENTIALS.items() if k is not None}
 
 # Garante que as chaves do dicionário final são strings (para lookup)
@@ -200,9 +240,13 @@ def validate_config():
     if not ISSNET_URL:
         errors.append("ISSNET_URL não definida.")
 
+    if not GLOBAL_USER or not GLOBAL_PASS:
+        errors.append("ISSNET_USER ou ISSNET_PASS não definidos no .env.")
+
     # Usamos FINAL_CREDENTIALS para garantir que a checagem é feita após a filtragem de chaves None
     if not FINAL_CREDENTIALS:
-        errors.append("Nenhuma credencial válida encontrada no .env.")
+        # Apenas um aviso, pois o CSV pode estar vazio inicialmente
+        print("⚠️ Aviso: Nenhuma empresa carregada de configuracoes.csv.")
 
     if errors:
         # A impressão de aviso é mantida para visibilidade no console

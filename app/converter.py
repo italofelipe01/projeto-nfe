@@ -208,7 +208,7 @@ def _validate_and_transform_row(row_data, mapping, decimal_separator, valida_dv)
         is_valid, err = validators.validate_item_lc(val)
         if not is_valid:
             row_errors.append(f"Item LC: {err}")
-        transformed_row["item_lc"] = transformers.clean_numeric_string(val, 4)
+        transformed_row["item_lc"] = transformers.transform_item_lc(val)
 
         # --- Unidade Econômica ---
         val = raw_data.get("unidade_economica")
@@ -308,6 +308,11 @@ def process_conversion(task_id, file_path, form_data, update_status_callback):
             raise Exception(
                 "Não foi possível encontrar colunas de Número Documento ou CPF/CNPJ para checar duplicatas."
             )
+
+        # Remove espaços das colunas chave para garantir comparação correta
+        # (ex: " 123 " == "123")
+        df[col_num_doc] = df[col_num_doc].astype(str).str.strip()
+        df[col_cnpj] = df[col_cnpj].astype(str).str.strip()
 
         # Encontra TODAS as linhas que são duplicadas (keep=False)
         # O Pandas identifica duplicatas com base nos dados brutos do arquivo.

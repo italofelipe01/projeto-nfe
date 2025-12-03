@@ -45,23 +45,34 @@ playwright install chromium
 
 ### 3\. Configuração de Ambiente (.env)
 
-Crie um arquivo `.env` na raiz do projeto com as credenciais de acesso ao portal ISS.net. Estas credenciais são utilizadas exclusivamente pelo robô RPA.
+Crie um arquivo `.env` na raiz do projeto com as credenciais de acesso ao portal ISS.net. O projeto utiliza um **Login Master (Contador)** para acessar todas as empresas.
 
 ```env
 # Configurações do Robô
-RPA_URL=[https://goiania.issnetonline.com.br/online/Login/Login.aspx](https://goiania.issnetonline.com.br/online/Login/Login.aspx)
-RPA_HEADLESS=True  # Defina como False para ver o robô trabalhando visualmente
+RPA_MODE=development # ou production
+ISSNET_URL=https://www.issnetonline.com.br/goiania/online/login/login.aspx
 
-# Credenciais (Inscrição Municipal / Senha)
-# Nota: A senha será processada pelo módulo de Teclado Virtual
-RPA_USER_CNPJ=SEU_USUARIO_AQUI
-RPA_USER_PASSWORD=SUA_SENHA_AQUI
-RPA_SECRET_KEY=sua_chave_secreta_flask
+# Credenciais GLOBAIS do Portal ISS.net
+ISSNET_USER=seu_usuario_master
+ISSNET_PASS=sua_senha_master
+
+# Configurações do Flask
+FLASK_ENV=development
+SECRET_KEY=sua_chave_secreta
 ```
 
 ### 4\. Arquivo de Configurações (CSV)
 
-Certifique-se de que o arquivo `configuracoes.csv` esteja na raiz do projeto. Ele alimenta os menus suspensos da interface web (ex: Códigos de Serviço, Alíquotas).
+Certifique-se de que o arquivo `configuracoes.csv` esteja na raiz do projeto. Ele define a lista de empresas disponíveis e seus detalhes específicos.
+
+**Estrutura do CSV (Separador: Ponto e Vírgula `;`):**
+`id;apelido;razao_social;inscricao_municipal;cnpj`
+
+Exemplo:
+```csv
+1;EMPRESA ALPHA;RAZAO SOCIAL ALPHA LTDA;123456;12345678000199
+2;EMPRESA BETA;RAZAO SOCIAL BETA LTDA;654321;98765432000199
+```
 
 -----
 
