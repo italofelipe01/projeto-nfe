@@ -202,7 +202,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 if (data.status === 'error') {
                     clearInterval(interval);
-                    showError(data.message);
+                    showError(data.message, data.error_details);
                     showStep(3);
                 }
 
@@ -254,11 +254,20 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    function showError(message) {
+    function showError(message, details) {
         totalRecords.textContent = '0';
         successRecords.textContent = '0';
         errorRecords.textContent = 'N/A';
-        errorsContent.textContent = `Erro Crítico: ${message}`;
+
+        let content = `Erro Crítico: ${message}\n\n`;
+
+        if (details && Array.isArray(details)) {
+             details.forEach(item => {
+                content += `Linha ${item.line}: ${item.errors.join(', ')}\n`;
+            });
+        }
+
+        errorsContent.textContent = content;
         errorsList.classList.remove('hide');
         downloadBtn.disabled = true;
         // Esconde RPA em caso de erro fatal
