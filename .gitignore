@@ -2,6 +2,7 @@
 downloads/
 uploads/
 chrome_user_data/
+docs/
 
 # Ambiente virtual
 venv/
