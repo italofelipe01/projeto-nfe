@@ -1,7 +1,6 @@
 # -*- coding: utf-8 -*-
 import os
 import pandas as pd
-import openpyxl
 import datetime
 from app.config import Config
 
@@ -20,21 +19,21 @@ def read_data_file(file_path):
 
             df = pd.read_csv(file_path, sep=sep, dtype=str, skipinitialspace=True)
         elif file_ext in [".xlsx", ".xls"]:
+            import openpyxl
+
             # Verificação de Múltiplas Abas (Regra de Negócio)
             try:
                 wb = openpyxl.load_workbook(file_path, read_only=True)
-                num_sheets = len(wb.sheetnames)
-                if num_sheets > 1:
+                if len(wb.sheetnames) > 1:
                     wb.close()
                     raise ValueError(
-                        f"O arquivo possui {num_sheets} abas. Permitido apenas 1."
                         "Arquivos com múltiplas abas não são permitidos. "
                         "Por favor, deixe apenas uma aba contendo os dados."
                     )
                 wb.close()
             except Exception as e:
                 # Se for o ValueError acima, re-raise. Se for erro de leitura, deixa o pandas tentar ou falhar.
-                if "Permitido apenas 1" in str(e):
+                if "múltiplas abas" in str(e):
                     raise e
                 # Caso contrário, continua e deixa o pandas lidar ou loga warning
                 print(f"Aviso: Não foi possível verificar abas com openpyxl: {e}")
