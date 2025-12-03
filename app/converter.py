@@ -264,6 +264,7 @@ def process_conversion(task_id, file_path, form_data, update_status_callback):
     success_count = 0
     error_count = 0
     error_details = []
+    error_filename = None
 
     try:
         # --- ETAPA 1: Ler o Arquivo ---
@@ -379,6 +380,16 @@ def process_conversion(task_id, file_path, form_data, update_status_callback):
         if header_error:
             raise Exception(header_error)
 
+        # GERA RELATÓRIO DE ERROS (se houver)
+        if error_count > 0:
+            error_filename, err_gen = file_handler.generate_error_report(
+                error_details, task_id
+            )
+            if err_gen:
+                logger.warning(
+                    f"[{task_id}] Falha ao gerar relatório de erros: {err_gen}"
+                )
+
         if success_count == 0:
             raise Exception("Nenhum registro válido processado. Verifique os erros.")
 
@@ -399,17 +410,6 @@ def process_conversion(task_id, file_path, form_data, update_status_callback):
         )
         if write_error:
             raise Exception(write_error)
-
-        # GERA RELATÓRIO DE ERROS (se houver)
-        error_filename = None
-        if error_count > 0:
-            error_filename, err_gen = file_handler.generate_error_report(
-                error_details, task_id
-            )
-            if err_gen:
-                logger.warning(
-                    f"[{task_id}] Falha ao gerar relatório de erros: {err_gen}"
-                )
 
         # --- ETAPA 6: Sucesso ---
         logger.info(f"[{task_id}] Conversão concluída com sucesso. Arquivo: {filename}")
@@ -441,6 +441,7 @@ def process_conversion(task_id, file_path, form_data, update_status_callback):
             success=success_count,
             errors=error_count,
             error_details=error_details,
+            error_filename=error_filename,
         )
     finally:
         pass

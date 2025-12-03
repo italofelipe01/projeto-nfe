@@ -161,9 +161,13 @@ def transform_date(value):
     if pd.isna(value) or value is None:
         return ""
 
+    val_str = str(value).strip()
+    if " " in val_str:
+        val_str = val_str.split(" ")[0]
+
     try:
         # pd.to_datetime é flexível para "adivinhar" o formato
-        date_obj = pd.to_datetime(value, dayfirst=True)
+        date_obj = pd.to_datetime(val_str, dayfirst=True)
         # .strftime formata a data para o padrão 'ddmmaaaa'
         return date_obj.strftime("%d%m%Y")
     except (ValueError, TypeError):
