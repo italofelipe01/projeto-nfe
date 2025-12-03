@@ -1,0 +1,18 @@
+cff-version: 1.2.0
+message: "Se você utilizar este software, por favor cite-o conforme abaixo."
+authors:
+- family-names: "Lira de Morais"
+  given-names: "Ítalo Felipe"
+title: "Projeto NFe - Automação ISS.net"
+version: 1.0.0
+date-released: 2025-11-28
+url: "https://github.com/italofelipe01/projeto-nfe"
+type: software
+license: MIT
+keywords:
+  - rpa
+  - python
+  - playwright
+  - nfe
+  - automação-fiscal
+  - gov-tech
