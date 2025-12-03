@@ -194,6 +194,8 @@ SELECTORS: Dict[str, Any] = {
         "chk_dv": "#radDVSim",
         "msg_resultado": "#divMensagemResultado",
         "msg_erro_detalhe": "#lblErro",
+        "btn_atualizar_status": "#imbLocalizar",
+        "grid_status_row": "#dgImportacao tr:nth-child(2)",
     },
 }
 
