@@ -36,7 +36,8 @@
 
                                 {% for config in configurations %}
                                 <option value="{{ config.id }}" data-razao="{{ config.razao_social }}"
-                                    data-inscricao="{{ config.inscricao_municipal }}">
+                                    data-inscricao="{{ config.inscricao_municipal }}"
+                                    data-cnpj="{{ config.cnpj_formatted }}">
                                     {{ config.apelido }}
                                 </option>
                                 {% endfor %}
@@ -48,16 +49,21 @@
                                 placeholder="Selecione uma empresa acima" required>
                         </div>
                         <div class="form-group">
+                            <label for="cnpj_tomador">CNPJ*</label>
+                            <input type="text" name="cnpj_tomador" id="cnpj_tomador"
+                                placeholder="Selecione uma empresa acima" required>
+                        </div>
+                        <div class="form-group" style="grid-column: span 2;">
                             <label for="razao_social">Nome/Razão Social do Tomador*</label>
                             <input type="text" name="razao_social" id="razao_social"
                                 placeholder="Selecione uma empresa acima" required>
                         </div>
 
-                        <div class="form-group">
+                        <div class="form-group" style="grid-column: span 1;">
                             <label for="mes">Mês da Competência*</label>
                             <input type="number" name="mes" id="mes" placeholder="Mês (1-12)" min="1" max="12" required>
                         </div>
-                        <div class="form-group">
+                        <div class="form-group" style="grid-column: span 1;">
                             <label for="ano">Ano da Competência*</label>
                             <input type="number" name="ano" id="ano" placeholder="Ano (AAAA)" min="2000" max="2100"
                                 required>
