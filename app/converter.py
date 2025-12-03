@@ -309,6 +309,11 @@ def process_conversion(task_id, file_path, form_data, update_status_callback):
                 "Não foi possível encontrar colunas de Número Documento ou CPF/CNPJ para checar duplicatas."
             )
 
+        # Remove espaços das colunas chave para garantir comparação correta
+        # (ex: " 123 " == "123")
+        df[col_num_doc] = df[col_num_doc].astype(str).str.strip()
+        df[col_cnpj] = df[col_cnpj].astype(str).str.strip()
+
         # Encontra TODAS as linhas que são duplicadas (keep=False)
         # O Pandas identifica duplicatas com base nos dados brutos do arquivo.
         duplicated_mask = df.duplicated(subset=[col_num_doc, col_cnpj], keep=False)
