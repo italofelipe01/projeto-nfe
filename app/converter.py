@@ -208,7 +208,7 @@ def _validate_and_transform_row(row_data, mapping, decimal_separator, valida_dv)
         is_valid, err = validators.validate_item_lc(val)
         if not is_valid:
             row_errors.append(f"Item LC: {err}")
-        transformed_row["item_lc"] = transformers.clean_numeric_string(val, 4)
+        transformed_row["item_lc"] = transformers.transform_item_lc(val)
 
         # --- Unidade Econômica ---
         val = raw_data.get("unidade_economica")
