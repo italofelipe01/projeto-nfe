@@ -28,6 +28,8 @@ def read_data_file(file_path):
                     wb.close()
                     raise ValueError(
                         f"O arquivo possui {num_sheets} abas. Permitido apenas 1."
+                        "Arquivos com múltiplas abas não são permitidos. "
+                        "Por favor, deixe apenas uma aba contendo os dados."
                     )
                 wb.close()
             except Exception as e:

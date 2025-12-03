@@ -282,8 +282,8 @@ def process_conversion(task_id, file_path, form_data, update_status_callback):
                 task_id,
                 "error",
                 100,
-                read_error,  # Passa o erro real como mensagem principal
-                read_error,  # Detalhes
+                "Erro na Leitura do Arquivo",
+                read_error,
                 error_details=error_details,
                 errors=error_count,
             )
