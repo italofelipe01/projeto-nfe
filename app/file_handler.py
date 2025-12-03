@@ -28,7 +28,7 @@ def read_data_file(file_path):
                     wb.close()
                     raise ValueError(
                         "Arquivos com múltiplas abas não são permitidos. "
-                        "Por favor, envie um arquivo contendo apenas uma aba."
+                        "Por favor, deixe apenas uma aba contendo os dados."
                     )
                 wb.close()
             except Exception as e:
