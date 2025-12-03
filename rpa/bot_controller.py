@@ -21,6 +21,7 @@ from rpa.config_rpa import (
     BROWSER_CONFIG,
     CREDENTIALS,
     LOGIN_TIMEOUT,
+    SELECTORS,
     USER_AGENT,
 )
 from rpa.error_handler import AuthenticationError, PortalOfflineError
@@ -191,6 +192,31 @@ class ISSBot:
 
                 uploader = ISSUploader(self.page, self.task_id)
                 uploader.upload_file(file_path)
+
+                # --- FASE 4.5: ESPERA E ATUALIZAÇÃO ---
+                # A prefeitura processa o arquivo de forma assíncrona.
+                # Se lermos imediatamente, o status será "Aguardando Processamento".
+                logger.info(f"[{self.task_id}] ⏳ Aguardando processamento do lote pela prefeitura (50s)...")
+                if status_callback:
+                    status_callback("Aguardando processamento pela prefeitura (50s)...")
+
+                # Mantém o browser aberto aguardando o processamento no servidor
+                time.sleep(50)
+
+                # Clica em Localizar para atualizar a grid
+                logger.info(f"[{self.task_id}] 🔄 Atualizando status do processamento...")
+                try:
+                    sels_imp = SELECTORS["importacao"]
+                    self.page.click(sels_imp["btn_atualizar_status"])
+
+                    # Aguarda o reload da grid (loading overlay)
+                    self.page.wait_for_selector(
+                        sels_imp["loading_overlay"],
+                        state="detached",
+                        timeout=LOGIN_TIMEOUT
+                    )
+                except Exception as e:
+                    logger.warning(f"[{self.task_id}] Erro ao tentar atualizar status: {e}")
 
                 # --- FASE 5: LEITURA DE RESULTADOS ---
                 if status_callback:
