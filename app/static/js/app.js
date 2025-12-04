@@ -134,7 +134,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         mesInput.value = targetMonth;
         anoInput.value = targetYear;
-        codigoServicoInput.value = '';
+        codigoServicoInput.value = '1';
 
         validateForm();
     });
