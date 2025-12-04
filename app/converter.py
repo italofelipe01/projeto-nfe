@@ -224,6 +224,9 @@ def _validate_and_transform_row(row_data, mapping, decimal_separator, valida_dv)
         if not is_valid:
             row_errors.append(err)
 
+    except ValueError as e:
+        # Erro de validação estrita (ex: "Valor inválido...")
+        row_errors.append(str(e))
     except Exception as e:
         logger.error(f"Erro inesperado ao transformar linha: {e}")
         row_errors.append(f"Erro interno de processamento: {e}")
