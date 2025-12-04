@@ -34,7 +34,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const btnRunRPA = document.getElementById('btnRunRPA');
     const rpaStatusText = document.getElementById('rpa-status-text');
     const rpaLogs = document.getElementById('rpa-logs');
-    const rpaModeSelector = document.getElementById('rpaModeSelector'); // NOVO
 
     // Seletores dos campos do formulário
     const configSelector = document.getElementById('config-selector');
@@ -283,8 +282,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     async function executeRobot(filename, inscricao) {
-        const selectedMode = rpaModeSelector.value; // Pega valor do Select
-        const isDev = selectedMode === 'dev';
         const statusSpan = rpaStatusText;
         const logsDiv = rpaLogs;
         const btn = document.getElementById('btnRunRPA');
@@ -304,7 +301,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 body: JSON.stringify({ 
                     filename: filename,
                     inscricao_municipal: inscricao,
-                    mode: isDev ? 'dev' : 'prod'
+                    mode: 'dev'
                 }),
             });
 

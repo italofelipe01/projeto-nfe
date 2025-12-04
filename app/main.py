@@ -183,7 +183,7 @@ def execute_rpa():
         return jsonify({"success": False, "message": "JSON inválido."}), 400
 
     filename = data.get("filename")
-    mode = data.get("mode")
+    mode = data.get("mode", "dev")
     inscricao_municipal = data.get("inscricao_municipal")
 
     if not filename:
