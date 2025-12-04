@@ -18,6 +18,8 @@ def read_data_file(file_path):
                 line = f.readline()
                 sep = ";" if line.count(";") > line.count(",") else ","
 
+            # Force Pandas to read as dtype=str (object) to prevent early float conversion.
+            # This is critical for "Immutable Decimals".
             df = pd.read_csv(file_path, sep=sep, dtype=str, skipinitialspace=True)
         elif file_ext in [".xlsx", ".xls"]:
             # Verificação de Múltiplas Abas (Regra de Negócio)
@@ -37,6 +39,8 @@ def read_data_file(file_path):
                 # Caso contrário, continua e deixa o pandas lidar ou loga warning
                 print(f"Aviso: Não foi possível verificar abas com openpyxl: {e}")
 
+            # Force Pandas to read as dtype=str (object) to prevent early float conversion.
+            # This is critical for "Immutable Decimals".
             df = pd.read_excel(file_path, dtype=str, engine="openpyxl")
         else:
             raise ValueError(f"Extensão não suportada: {file_ext}")

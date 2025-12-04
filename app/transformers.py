@@ -10,7 +10,7 @@ para o padrão final do TXT (ex: "1000.50").
 
 import pandas as pd
 import re
-
+from decimal import Decimal, InvalidOperation
 
 def clean_numeric_string(value, max_len=None):
     """
@@ -51,71 +51,61 @@ def clean_alphanumeric(value, max_len=None):
     return cleaned
 
 
+def preserve_exact_decimal(value, decimal_separator="virgula"):
+    """
+    /// Preserva o valor decimal exato (Immutable Decimal).
+    /// 1. Normaliza separadores (virgula -> ponto).
+    /// 2. Valida se é numérico (Decimal).
+    /// 3. Retorna a string exata, sem arredondamentos.
+    /// Ex: "10.50" -> "10.50", "0.3333" -> "0.3333".
+    """
+    if pd.isna(value) or value is None or str(value).strip() == "":
+        return "0.00"
+
+    # 1. Normaliza
+    # Remove R$ e espaços. (Permitimos R$ como prefixo comum, mas "10 reais" deve falhar)
+    val_str = str(value).replace("R$", "").strip()
+
+    # "1. Replaces comma with dot (normalization)."
+    # Normalizamos vírgula para ponto SEMPRE.
+    val_str = val_str.replace(",", ".")
+
+    # NÃO REMOVEMOS CARACTERES INVÁLIDOS.
+    # A validação deve ser ESTRITA ("Strict 'No Text' Validation").
+    # Se houver "10.00 reais", o Decimal vai falhar, e é isso que queremos.
+
+    # 2. Validate (No Text Allowed)
+    try:
+        # Verifica se é um número válido
+        Decimal(val_str)
+    except InvalidOperation:
+        raise ValueError(f"Valor inválido encontrado: {value}. Apenas números são permitidos.")
+
+    # 3. Return Exact String
+    return val_str
+
+
 def transform_monetary(value, decimal_separator, max_len=10):
     """
     /// Normaliza valores monetários.
-    /// Força estritamente 2 casas decimais usando Decimal.quantize.
+    /// AGORA USA 'preserve_exact_decimal' PARA MANTER PRECISÃO.
     """
-    from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
-
-    if pd.isna(value) or value is None:
-        return "0.00"
-
-    # Remove símbolos comuns (R$) e espaços
-    cleaned_str = str(value).replace("R$", "").strip()
-
-    # CORREÇÃO: Padronização para 'virgula' e 'ponto'
-    if decimal_separator == "virgula":
-        # Formato Brasil (1.234,56) -> Remove ponto milhar, troca virgula decimal
-        cleaned_str = cleaned_str.replace(".", "").replace(",", ".")
-    else:
-        # Formato EUA (1,234.56) -> Remove virgula milhar
-        cleaned_str = cleaned_str.replace(",", "")
-
-    # Remove qualquer outro caractere não numérico que sobrou
-    cleaned_str = re.sub(r"[^0-9.]", "", cleaned_str)
-
     try:
-        d = Decimal(cleaned_str)
-        # Força 2 casas decimais
-        formatted_val = d.quantize(Decimal("0.00"), rounding=ROUND_HALF_UP)
-        return str(formatted_val)
-    except (ValueError, TypeError, InvalidOperation):
-        return "0.00"
+        return preserve_exact_decimal(value, decimal_separator)
+    except ValueError:
+        # Propaga o erro para ser capturado pelo relatório de erros
+        raise
 
 
 def transform_aliquota(value, decimal_separator, max_len=None):
     """
     /// Normaliza a alíquota.
-    /// Força estritamente 2 casas decimais usando Decimal.quantize.
-    /// Ex: 5 -> "5.00", 2.3456 -> "2.35"
+    /// AGORA USA 'preserve_exact_decimal' PARA MANTER PRECISÃO.
     """
-    from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
-
-    if pd.isna(value) or value is None:
-        return "0.00"
-
-    cleaned_str = str(value).strip()
-
-    # Se estiver vazio
-    if not cleaned_str:
-        return "0.00"
-
-    # Padronização para 'virgula' e 'ponto'
-    if decimal_separator == "virgula":
-        cleaned_str = cleaned_str.replace(",", ".")
-
-    # Remove qualquer coisa que não seja dígito ou ponto
-    cleaned_str = re.sub(r"[^0-9.]", "", cleaned_str)
-
     try:
-        d = Decimal(cleaned_str)
-        # Força 2 casas decimais
-        formatted_val = d.quantize(Decimal("0.00"), rounding=ROUND_HALF_UP)
-        return str(formatted_val)
-
-    except (ValueError, TypeError, InvalidOperation):
-        return "0.00"
+        return preserve_exact_decimal(value, decimal_separator)
+    except ValueError:
+        raise
 
 
 def transform_item_lc(value):
@@ -141,12 +131,6 @@ def transform_item_lc(value):
              pass
 
     # Remove caracteres não numéricos (opcional, mas seguro para códigos)
-    # Prompt diz: "If input is 703 -> 0703".
-    # Vamos limpar apenas para garantir que " 703 " funcione.
-    # Mas se vier "14.01", limpar remove o ponto -> "1401"?
-    # LC usually is "14.01". Removing dot makes it "1401". This matches standard LC format often.
-    # However, standard says "always contain 4 digits". "0703".
-    # Let's strip non-digits to be safe.
     cleaned = re.sub(r"\D", "", val_str)
 
     return cleaned.zfill(4)
