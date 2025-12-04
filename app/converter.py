@@ -353,8 +353,9 @@ def process_conversion(task_id, file_path, form_data, update_status_callback):
         valid_data_dicts = []
 
         # Lê as flags do formulário (com os nomes corretos do HTML)
-        decimal_separator = form_data.get("separador_decimal", "virgula")
-        valida_dv = form_data.get("digito_verificador") == "sim"
+        # REFACTOR: Agora o sistema assume "virgula" e validação estrita (sim) por padrão
+        decimal_separator = "virgula"  # Hard-coded default for Immutable Decimal
+        valida_dv = True               # Hard-coded strict validation
 
         for i, (original_index, row) in enumerate(df.iterrows()):
             line_number = i + 2
