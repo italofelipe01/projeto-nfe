@@ -66,6 +66,14 @@ def preserve_exact_decimal(value, decimal_separator="virgula"):
     # Remove R$ e espaços. (Permitimos R$ como prefixo comum, mas "10 reais" deve falhar)
     val_str = str(value).replace("R$", "").strip()
 
+    # Remove separadores de milhares antes de normalizar o separador decimal
+    if decimal_separator == "virgula":
+        # Se decimal é vírgula, milhares deve ser ponto (se existir)
+        val_str = val_str.replace(".", "")
+    else:
+        # Se decimal é ponto, milhares deve ser vírgula (se existir)
+        val_str = val_str.replace(",", "")
+
     # "1. Replaces comma with dot (normalization)."
     # Normalizamos vírgula para ponto SEMPRE.
     val_str = val_str.replace(",", ".")
