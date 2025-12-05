@@ -102,3 +102,57 @@ class ISSResultParser:
                 "message": "Erro técnico ao ler a resposta do portal.",
                 "details": str(e),
             }
+
+    def ler_status_processamento(self, nome_arquivo: str) -> str:
+        """
+        Varre a grid de solicitações na página de Consulta para encontrar a linha do arquivo enviado
+        e retornar seu status atual.
+
+        Args:
+            nome_arquivo (str): Nome do arquivo TXT que foi enviado.
+
+        Returns:
+            str: O status encontrado (ex: "Processado com Sucesso", "Processado com Erro", "Aguardando", "NOT_FOUND").
+        """
+        try:
+            sels = SELECTORS["consulta"]
+            grid_selector = sels["grid_resultados"]
+
+            # Verifica se a tabela existe
+            if not self.page.locator(grid_selector).is_visible():
+                logger.warning(f"[{self.task_id}] Tabela de resultados não encontrada.")
+                return "NOT_FOUND"
+
+            # Itera sobre as linhas da tabela (exceto cabeçalho)
+            # Estrutura esperada: Data | Competência | Nome Arquivo | Status
+            rows = self.page.locator(f"{grid_selector} tr")
+            count = rows.count()
+
+            logger.debug(f"[{self.task_id}] Analisando {count} linhas na grid de consulta...")
+
+            for i in range(count):
+                row = rows.nth(i)
+                text = row.inner_text()
+
+                # Verifica se o nome do arquivo está nesta linha
+                if nome_arquivo in text:
+                    # Assume que o status é a última coluna ou está presente no texto
+                    # Retorna o texto bruto da linha para análise posterior ou extrai o status conhecido
+                    logger.info(f"[{self.task_id}] Arquivo encontrado na linha {i}: {text}")
+
+                    text_lower = text.lower()
+                    if "sucesso" in text_lower or "êxito" in text_lower:
+                        return "Processado com Sucesso"
+                    elif "erro" in text_lower:
+                        return "Processado com Erro"
+                    elif "aguardando" in text_lower or "processando" in text_lower:
+                        return "Aguardando"
+                    else:
+                        return f"Status Desconhecido: {text}"
+
+            logger.warning(f"[{self.task_id}] Arquivo '{nome_arquivo}' não encontrado na grid.")
+            return "NOT_FOUND"
+
+        except Exception as e:
+            logger.error(f"[{self.task_id}] Erro ao ler status na consulta: {e}")
+            return "ERROR"

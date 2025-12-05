@@ -130,3 +130,70 @@ class ISSNavigator:
             raise NavigationError(
                 f"Erro ao tentar acessar a URL de Importação: {URLS['importacao']}. O portal pode estar instável."
             ) from e
+
+    def ir_para_consulta(self) -> None:
+        """
+        Navega para a página de Consulta de Importações (status pós-upload).
+        """
+        logger.info(
+            f"[{self.task_id}] 🧭 Navegando para a tela de Consulta de Importações..."
+        )
+        try:
+            # Navega para a URL definida nas configurações
+            self.page.goto(URLS["consulta_importacao"], timeout=NAVIGATION_TIMEOUT)
+
+            # Aguarda o carregamento do botão de localizar para confirmar sucesso
+            self.page.wait_for_selector(
+                SELECTORS["consulta"]["btn_localizar"],
+                state="visible",
+                timeout=DEFAULT_TIMEOUT,
+            )
+            logger.info(
+                f"[{self.task_id}] ✅ Navegação para Consulta concluída."
+            )
+        except Exception as e:
+            logger.error(
+                f"[{self.task_id}] ❌ Falha ao navegar para Consulta: {str(e)}"
+            )
+            raise NavigationError(
+                f"Erro ao acessar tela de Consulta. Portal offline?"
+            ) from e
+
+    def atualizar_grid(self) -> None:
+        """
+        Realiza a ação de atualizar a grid de resultados na tela de Consulta.
+        Fluxo: Espera 15s -> Clica em Localizar -> Espera Overlay aparecer e sumir.
+        """
+        logger.info(f"[{self.task_id}] 🔄 Iniciando atualização da grid de status...")
+
+        try:
+            # Requisito do usuário: Aguardar 15 segundos antes de clicar
+            # Isso dá tempo para o backend da prefeitura processar o arquivo recém-enviado
+            logger.debug(f"[{self.task_id}] Aguardando 15s antes de clicar em Localizar...")
+            time.sleep(15)
+
+            sels = SELECTORS["consulta"]
+
+            # Clica no botão de localizar (PostBack)
+            logger.debug(f"[{self.task_id}] Clicando em 'Localizar'...")
+            self.page.click(sels["btn_localizar"])
+
+            # Sincronização com o Loading Overlay
+            # O sistema exibe um 'Aguarde' via JS. Precisamos esperar ele aparecer e sumir.
+            loading_sel = sels["loading_overlay"]
+
+            try:
+                # Espera overlay aparecer (pode ser rápido)
+                self.page.wait_for_selector(loading_sel, state="visible", timeout=5000)
+            except PlaywrightTimeoutError:
+                # Se não aparecer, logamos warning, mas prosseguimos (pode ter sido instantâneo)
+                logger.warning(f"[{self.task_id}] Overlay de loading não detectado (muito rápido?).")
+
+            # Espera overlay sumir (indica fim do PostBack/AJAX)
+            self.page.wait_for_selector(loading_sel, state="detached", timeout=DEFAULT_TIMEOUT)
+
+            logger.debug(f"[{self.task_id}] Grid atualizada (Overlay desapareceu).")
+
+        except Exception as e:
+            logger.error(f"[{self.task_id}] Falha ao atualizar grid: {e}")
+            raise NavigationError("Erro ao tentar atualizar a grid de status.") from e
