@@ -156,6 +156,10 @@ LOGIN_TIMEOUT = int(os.getenv("RPA_LOGIN_TIMEOUT", "60000"))
 NAVIGATION_TIMEOUT = 60000
 UPLOAD_TIMEOUT = 120000
 
+# --- Configuração de Polling (Consultas) ---
+POLLING_MAX_RETRIES = 20
+POLLING_INTERVAL = 5  # Segundos
+
 # --- SELETORES (Mapeamento do DOM) ---
 SELECTORS: Dict[str, Any] = {
     "login": {
@@ -196,6 +200,13 @@ SELECTORS: Dict[str, Any] = {
         "msg_erro_detalhe": "#lblErro",
         "btn_atualizar_status": "#imbLocalizar",
         "grid_status_row": "#dgImportacao tr:nth-child(2)",
+    },
+    "consulta": {
+        "competencia_mes": "#ddlMes",
+        "competencia_ano": "#txtAno",
+        "btn_localizar": "#btnLocalizar",
+        "grid_resultados": "#dgSolicitacoes",
+        "loading_overlay": "#loading",
     },
 }
 

@@ -11,6 +11,8 @@ Responsabilidade:
 
 import time
 from typing import Optional
+import os
+from pathlib import Path
 
 from playwright.sync_api import BrowserContext, Page, sync_playwright
 from playwright_stealth import Stealth
@@ -23,6 +25,8 @@ from rpa.config_rpa import (
     LOGIN_TIMEOUT,
     SELECTORS,
     USER_AGENT,
+    POLLING_MAX_RETRIES,
+    POLLING_INTERVAL
 )
 from rpa.error_handler import AuthenticationError, PortalOfflineError
 from rpa.utils import setup_logger
@@ -193,42 +197,79 @@ class ISSBot:
                 uploader = ISSUploader(self.page, self.task_id)
                 uploader.upload_file(file_path)
 
-                # --- FASE 4.5: ESPERA E ATUALIZAÇÃO ---
-                # A prefeitura processa o arquivo de forma assíncrona.
-                # Se lermos imediatamente, o status será "Aguardando Processamento".
-                logger.info(f"[{self.task_id}] ⏳ Aguardando processamento do lote pela prefeitura (50s)...")
+                # --- FASE 5: CONSULTA E POLLING DE STATUS (Active Polling) ---
                 if status_callback:
-                    status_callback("Aguardando processamento pela prefeitura (50s)...")
+                    status_callback("Monitorando status do processamento...")
 
-                # Mantém o browser aberto aguardando o processamento no servidor
-                time.sleep(50)
-
-                # Clica em Localizar para atualizar a grid
-                logger.info(f"[{self.task_id}] 🔄 Atualizando status do processamento...")
-                try:
-                    sels_imp = SELECTORS["importacao"]
-                    self.page.click(sels_imp["btn_atualizar_status"])
-
-                    # Aguarda o reload da grid (loading overlay)
-                    self.page.wait_for_selector(
-                        sels_imp["loading_overlay"],
-                        state="detached",
-                        timeout=LOGIN_TIMEOUT
-                    )
-                except Exception as e:
-                    logger.warning(f"[{self.task_id}] Erro ao tentar atualizar status: {e}")
-
-                # --- FASE 5: LEITURA DE RESULTADOS ---
-                if status_callback:
-                    status_callback("Analisando resultados...")
+                # Navega explicitamente para a consulta para garantir o contexto
+                nav.ir_para_consulta()
 
                 parser = ISSResultParser(self.page, self.task_id)
-                resultado = parser.parse()
+                nome_arquivo = Path(file_path).name
 
-                if status_callback:
-                    status_callback("Processo concluído com sucesso!")
+                polling_attempt = 0
+                final_result = None
 
-                return resultado  # Sucesso, sai do loop
+                while polling_attempt < POLLING_MAX_RETRIES:
+                    polling_attempt += 1
+                    logger.info(f"[{self.task_id}] 🔄 Polling de status: Tentativa {polling_attempt}/{POLLING_MAX_RETRIES}")
+                    if status_callback:
+                        status_callback(f"Verificando status (Tentativa {polling_attempt})...")
+
+                    # Atualiza a grid (espera 15s + click + loading)
+                    nav.atualizar_grid()
+
+                    # Lê o status na tabela
+                    status = parser.ler_status_processamento(nome_arquivo)
+                    logger.info(f"[{self.task_id}] Status obtido: {status}")
+
+                    if status == "Processado com Sucesso":
+                        final_result = {
+                            "success": True,
+                            "message": "Processado com Sucesso!",
+                            "details": f"O arquivo {nome_arquivo} foi processado corretamente."
+                        }
+                        break
+
+                    elif status == "Processado com Erro":
+                        final_result = {
+                            "success": False,
+                            "message": "Processado com Erros.",
+                            "details": f"O arquivo {nome_arquivo} apresentou erros no processamento. Verifique o portal para detalhes."
+                        }
+                        break
+
+                    elif status == "Aguardando":
+                         # Continua no loop
+                         logger.debug(f"[{self.task_id}] Status ainda é 'Aguardando'. Aguardando intervalo de polling...")
+                         time.sleep(POLLING_INTERVAL)
+                         continue
+
+                    elif status == "NOT_FOUND":
+                         # Pode ser que o arquivo ainda não tenha aparecido na grid
+                         logger.warning(f"[{self.task_id}] Arquivo não encontrado na grid. Pode estar indexando...")
+                         time.sleep(POLLING_INTERVAL)
+                         continue
+
+                    else:
+                         # Status desconhecido
+                         logger.warning(f"[{self.task_id}] Status desconhecido: {status}. Tentando novamente...")
+                         time.sleep(POLLING_INTERVAL)
+                         continue
+
+                if final_result:
+                    if status_callback:
+                        status_callback(final_result["message"])
+                    return final_result
+
+                # Se saiu do loop por timeout
+                msg_timeout = "Tempo limite de processamento excedido. O arquivo ainda está em status 'Aguardando' ou não foi encontrado."
+                logger.error(f"[{self.task_id}] {msg_timeout}")
+                return {
+                    "success": False,
+                    "message": "Timeout de Processamento",
+                    "details": msg_timeout
+                }
 
             except PortalOfflineError as e:
                 logger.warning(
