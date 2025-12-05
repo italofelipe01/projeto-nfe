@@ -357,7 +357,10 @@ def process_conversion(task_id, file_path, form_data, update_status_callback):
         decimal_separator = "virgula"  # Hard-coded default for Immutable Decimal
         valida_dv = True               # Hard-coded strict validation
 
-        for i, (original_index, row) in enumerate(df.iterrows()):
+        # PERFORMANCE: Substituído df.iterrows() por df.to_dict('index')
+        # itertuples não suporta acesso dinâmico por string (ex: row.get('Valor Total'))
+        # to_dict('index') converte para {index: {col: val}}, que é muito mais rápido e compatível.
+        for i, (original_index, row) in enumerate(df.to_dict("index").items()):
             line_number = i + 2
 
             # Chama a validação normal
