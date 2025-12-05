@@ -13,6 +13,8 @@ import csv
 from pathlib import Path
 from dotenv import load_dotenv
 
+from rpa.utils import setup_logger
+
 # Carrega as variáveis de ambiente do arquivo .env na raiz
 load_dotenv()
 
@@ -30,6 +32,7 @@ LOGS_DIR.mkdir(exist_ok=True)
 EXECUTION_LOGS_DIR.mkdir(exist_ok=True)
 DEBUG_SCREENSHOTS_DIR.mkdir(exist_ok=True)
 
+logger = setup_logger("rpa_config")
 
 # Diretório de downloads/uploads (onde ficam os arquivos TXT gerados)
 DOWNLOADS_DIR = PROJECT_ROOT / "downloads"
@@ -69,7 +72,7 @@ def load_companies_from_csv() -> Dict[str, CredentialData]:
     credentials_map: Dict[str, CredentialData] = {}
 
     if not csv_path.exists():
-        print(f"⚠️ Aviso: Arquivo {csv_path} não encontrado.")
+        logger.warning(f"Arquivo {csv_path} não encontrado.")
         return {}
 
     try:
@@ -98,16 +101,13 @@ def load_companies_from_csv() -> Dict[str, CredentialData]:
                         credentials_map[inscricao] = credentials_map[inscricao_clean]
 
     except Exception as e:
-        print(f"⚠️ Erro ao ler configuracoes.csv: {e}")
+        logger.error(f"Erro ao ler configuracoes.csv: {e}")
 
     return credentials_map
 
 
 # Carrega as credenciais dinamicamente
-CREDENTIALS: Dict[Optional[str], CredentialData] = load_companies_from_csv()
-
-# Remove chaves que possam estar vazias
-CREDENTIALS = {k: v for k, v in CREDENTIALS.items() if k is not None}
+CREDENTIALS: Dict[str, CredentialData] = load_companies_from_csv()
 
 # Garante que as chaves do dicionário final são strings (para lookup)
 FINAL_CREDENTIALS: Dict[str, CredentialData] = {
@@ -259,15 +259,15 @@ def validate_config():
     # Usamos FINAL_CREDENTIALS para garantir que a checagem é feita após a filtragem de chaves None
     if not FINAL_CREDENTIALS:
         # Apenas um aviso, pois o CSV pode estar vazio inicialmente
-        print("⚠️ Aviso: Nenhuma empresa carregada de configuracoes.csv.")
+        logger.warning("Nenhuma empresa carregada de configuracoes.csv.")
 
     if errors:
         # A impressão de aviso é mantida para visibilidade no console
-        print(f"⚠️  Aviso de Configuração RPA: {', '.join(errors)}")
+        logger.warning(f"Aviso de Configuração RPA: {', '.join(errors)}")
 
 
 try:
     validate_config()
 except Exception as e:
     # Captura de erro para debug em ambiente de CLI
-    print(f"⚠️ Configuração RPA Inválida: {e}")
+    logger.error(f"Configuração RPA Inválida: {e}")

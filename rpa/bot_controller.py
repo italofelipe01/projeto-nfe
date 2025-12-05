@@ -163,13 +163,12 @@ class ISSBot:
                 self.page.set_default_timeout(LOGIN_TIMEOUT)
 
                 # --- FASE 1: LOGIN ---
-                user, password, inscricao, cnpj = (
-                    creds.get("user"),
-                    creds.get("pass"),
-                    creds.get("inscricao"),
-                    creds.get("cnpj"),
-                )
-                if not all([user, password, inscricao, cnpj]):
+                user = creds.get("user")
+                password = creds.get("pass")
+                inscricao = creds.get("inscricao")
+                cnpj = creds.get("cnpj")
+
+                if not user or not password or not inscricao or not cnpj:
                     raise ValueError(
                         f"Credenciais incompletas para {inscricao_municipal} (Usuário, Senha, Inscrição ou CNPJ vazios)."
                     )
