@@ -152,7 +152,7 @@ def validate_date_format(value, is_required=True):
 
     # Lista de formatos aceitos
     # O formato '%d/%m/%Y' garante dia/mês/ano com 4 dígitos
-    formats = ["%d/%m/%Y", "%Y-%m-%d", "%d-%m-%Y"]
+    formats = ["%d/%m/%Y", "%Y-%m-%d"]
 
     for fmt in formats:
         try:
