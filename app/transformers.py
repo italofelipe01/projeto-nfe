@@ -10,6 +10,7 @@ para o padrão final do TXT (ex: "1000.50").
 
 import pandas as pd
 import re
+from datetime import datetime
 from decimal import Decimal, InvalidOperation
 
 def clean_numeric_string(value, max_len=None):
@@ -157,13 +158,18 @@ def transform_date(value):
     if " " in val_str:
         val_str = val_str.split(" ")[0]
 
-    try:
-        # pd.to_datetime é flexível para "adivinhar" o formato
-        date_obj = pd.to_datetime(val_str, dayfirst=True)
-        # .strftime formata a data para o padrão 'ddmmaaaa'
-        return date_obj.strftime("%d%m%Y")
-    except (ValueError, TypeError):
-        return ""
+    formats = ["%d/%m/%Y", "%Y-%m-%d"]
+    for fmt in formats:
+        try:
+            date_obj = datetime.strptime(val_str, fmt)
+            return date_obj.strftime("%d%m%Y")
+        except ValueError:
+            continue
+
+    # Se chegamos aqui, nenhum formato bateu.
+    # O requisito pede explicitamente para levantar erro se não bater estritamente.
+    # Isso garante que não haja "adivinhação".
+    raise ValueError(f"Data '{value}' inválida ou formato desconhecido. Use DD/MM/AAAA ou AAAA-MM-DD.")
 
 
 def transform_boolean(value):
