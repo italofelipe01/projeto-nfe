@@ -89,6 +89,7 @@ def validate_aliquota(value, decimal_separator="virgula"):
     """
     /// Validador para Alíquota.
     /// Regra: Obrigatório, numérico, entre 0 e 100.
+    /// ESTRITO: Máximo de 4 casas decimais.
     """
     if pd.isna(value) or value is None or str(value).strip() == "":
         return False, "Alíquota é obrigatória."
@@ -97,6 +98,16 @@ def validate_aliquota(value, decimal_separator="virgula"):
         cleaned_str = str(value).strip()
         if decimal_separator == "virgula":
             cleaned_str = cleaned_str.replace(",", ".")
+
+        # Validação estrita de formato numérico
+        if not re.match(r"^\d+(\.\d+)?$", cleaned_str):
+             return False, "Alíquota deve conter apenas números."
+
+        # Validação de Casas Decimais (Máximo 4)
+        if "." in cleaned_str:
+            decimals = cleaned_str.split(".")[1]
+            if len(decimals) > 4:
+                return False, f"Alíquota tem {len(decimals)} casas decimais (máximo 4 permitido)."
 
         cleaned_str = re.sub(r"[^0-9.]", "", cleaned_str)
         float_val = float(cleaned_str)
@@ -137,7 +148,7 @@ def validate_date_format(value, is_required=True):
     """
     /// Validador de Data Estrito.
     /// Verifica se a data existe no calendário (ex: rejeita 30/02).
-    /// Aceita formatos DD/MM/AAAA ou AAAA-MM-DD.
+    /// Aceita formatos DD/MM/AAAA, AAAA-MM-DD e AAAA/MM/DD.
     """
     if pd.isna(value) or value is None or str(value).strip() == "":
         if is_required:
@@ -152,7 +163,7 @@ def validate_date_format(value, is_required=True):
 
     # Lista de formatos aceitos
     # O formato '%d/%m/%Y' garante dia/mês/ano com 4 dígitos
-    formats = ["%d/%m/%Y", "%Y-%m-%d"]
+    formats = ["%d/%m/%Y", "%Y-%m-%d", "%Y/%m/%d"]
 
     for fmt in formats:
         try:

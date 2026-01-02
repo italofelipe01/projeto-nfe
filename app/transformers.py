@@ -11,13 +11,14 @@ para o padrão final do TXT (ex: "1000.50").
 import pandas as pd
 import re
 from datetime import datetime
-from decimal import Decimal, InvalidOperation
+from decimal import Decimal, InvalidOperation, ROUND_DOWN
 
-def clean_numeric_string(value, max_len=None):
+def clean_numeric_string(value, max_len=None, pad_fixed_width=False):
     """
     /// Limpa e padroniza campos numéricos.
     /// Remove formatação (pontos, traços, barras) e deixa apenas os dígitos.
     /// Ex: "11.222.333/0001-44" -> "11222333000144"
+    /// Se pad_fixed_width=True e max_len for fornecido, aplica zfill.
     """
     if pd.isna(value) or value is None:
         return ""
@@ -25,9 +26,13 @@ def clean_numeric_string(value, max_len=None):
     # Usa RegEx (re.sub) para remover tudo que não for um dígito (\D)
     cleaned = re.sub(r"\D", "", str(value))
 
-    if max_len and len(cleaned) > max_len:
-        # Garante a regra de negócio de tamanho máximo (ex: CEP max 8)
-        cleaned = cleaned[:max_len]
+    if max_len:
+        if len(cleaned) > max_len:
+            # Garante a regra de negócio de tamanho máximo (ex: CEP max 8)
+            cleaned = cleaned[:max_len]
+        elif pad_fixed_width and len(cleaned) < max_len:
+            # Padroniza com zeros à esquerda se solicitado
+            cleaned = cleaned.zfill(max_len)
 
     return cleaned
 
@@ -97,19 +102,31 @@ def preserve_exact_decimal(value, decimal_separator="virgula"):
 def transform_monetary(value, decimal_separator, max_len=10):
     """
     /// Normaliza valores monetários.
-    /// AGORA USA 'preserve_exact_decimal' PARA MANTER PRECISÃO.
+    /// Trunca para 2 casas decimais SEM arredondar.
+    /// Ex: 1234.5678 -> 1234.57
     """
     try:
-        return preserve_exact_decimal(value, decimal_separator)
+        val_str = preserve_exact_decimal(value, decimal_separator)
+
+        # Cria objeto Decimal para manipulação precisa
+        d = Decimal(val_str)
+
+        # Trunca para 2 casas decimais (ROUND_DOWN)
+        # '0.01' é o expoente que queremos manter
+        truncated = d.quantize(Decimal("0.01"), rounding=ROUND_DOWN)
+
+        return f"{truncated:.2f}"
     except ValueError:
         # Propaga o erro para ser capturado pelo relatório de erros
         raise
+    except Exception as e:
+        raise ValueError(f"Erro ao transformar valor monetário: {e}")
 
 
 def transform_aliquota(value, decimal_separator, max_len=None):
     """
     /// Normaliza a alíquota.
-    /// AGORA USA 'preserve_exact_decimal' PARA MANTER PRECISÃO.
+    /// Mantém o valor exato, pois a validação já garantiu o formato.
     """
     try:
         return preserve_exact_decimal(value, decimal_separator)
@@ -148,7 +165,7 @@ def transform_item_lc(value):
 def transform_date(value):
     """
     /// Normaliza datas.
-    /// Converte "25/10/2025" ou "2025-10-25" para "ddmmaaaa" ("25102025").
+    /// Converte "25/10/2025" ou "2025-10-25" para "dd/mm/aaaa" ("25/10/2025").
     /// Assume que 'validate_date_format' já confirmou que é uma data válida.
     """
     if pd.isna(value) or value is None:
@@ -158,17 +175,16 @@ def transform_date(value):
     if " " in val_str:
         val_str = val_str.split(" ")[0]
 
-    formats = ["%d/%m/%Y", "%Y-%m-%d"]
+    formats = ["%d/%m/%Y", "%Y-%m-%d", "%Y/%m/%d"]
     for fmt in formats:
         try:
             date_obj = datetime.strptime(val_str, fmt)
-            return date_obj.strftime("%d%m%Y")
+            # REQUISITO: Output deve ser DD/MM/AAAA (com barras)
+            return date_obj.strftime("%d/%m/%Y")
         except ValueError:
             continue
 
     # Se chegamos aqui, nenhum formato bateu.
-    # O requisito pede explicitamente para levantar erro se não bater estritamente.
-    # Isso garante que não haja "adivinhação".
     raise ValueError(f"Data '{value}' inválida ou formato desconhecido. Use DD/MM/AAAA ou AAAA-MM-DD.")
 
 
