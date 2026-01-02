@@ -79,8 +79,9 @@ def _validate_and_transform_row(row_data, mapping, decimal_separator, valida_dv)
         is_valid, err = validators.validate_cpf_cnpj(val, check_dv=valida_dv)
         if not is_valid:
             row_errors.append(f"CPF/CNPJ Prestador: {err}")
+        # Habilita pad_fixed_width para garantir zeros à esquerda
         transformed_row["cpf_cnpj_prestador"] = transformers.clean_numeric_string(
-            val, 14
+            val, 14, pad_fixed_width=True
         )
 
         # --- CEP Prestador ---
@@ -88,7 +89,8 @@ def _validate_and_transform_row(row_data, mapping, decimal_separator, valida_dv)
         is_valid, err = validators.validate_cep(val)
         if not is_valid:
             row_errors.append(f"CEP Prestador: {err}")
-        transformed_row["cep_prestador"] = transformers.clean_numeric_string(val, 8)
+        # Habilita pad_fixed_width para garantir zeros à esquerda
+        transformed_row["cep_prestador"] = transformers.clean_numeric_string(val, 8, pad_fixed_width=True)
 
         # --- DDD ---
         val = raw_data.get("ddd")
