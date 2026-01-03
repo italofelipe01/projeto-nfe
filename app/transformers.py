@@ -16,14 +16,18 @@ from decimal import Decimal, InvalidOperation, ROUND_DOWN
 def normalize_currency(value):
     """
     /// Normaliza valores numéricos usando uma abordagem híbrida robusta.
-    /// Scenario A (Comma exists): Assume formato BR (ponto=milhar, virgula=decimal).
-    /// Scenario B (Only Dot exists): Assume formato US (ponto=decimal).
-    /// Scenario C (Clean Number): Parse direto.
+    /// Step 1: Check if already number.
+    /// Step 2: String cleanup.
+    /// Step 3: Heuristic Analysis (Scenario A/B/C).
     """
     if pd.isna(value) or value is None:
         return "0.00"
 
-    # 1. Input Analysis
+    # Step 1: Type Check
+    if isinstance(value, (int, float)):
+        return str(value)
+
+    # Step 2: String Cleanup
     val_str = str(value).strip()
     # Remove R$ e espaços extras
     val_str = val_str.replace("R$", "").strip()
@@ -31,22 +35,24 @@ def normalize_currency(value):
     if not val_str:
         return "0.00"
 
-    # 2. Scenario A (Comma exists) -> Brazilian Standard
+    # Step 3: Heuristic Analysis
+
+    # Case A (Brazilian Standard): Comma exists
     if "," in val_str:
-        # Remove dots (thousands)
+        # The comma IS the decimal separator. The dots are thousands.
+        # Action: Remove all dots. Replace comma with dot.
         val_str = val_str.replace(".", "")
-        # Replace comma with dot (decimal)
         val_str = val_str.replace(",", ".")
 
-    # 3. Scenario B (Only Dot exists) -> US Standard
+    # Case B (System/International): Dot exists and NO Comma
     elif "." in val_str:
-        # CRITICAL: Treat the dot as a decimal separator. DO NOT REMOVE IT.
-        # Exception: Multiple dots logic is implicit (Decimal() validation will catch if invalid)
+        # The dot IS the decimal separator.
+        # Action: Keep the dot. Parse as float (implicitly done by returning the string for Decimal)
         pass
 
-    # 4. Scenario C (Clean Number)
+    # Case C (Clean Integer): No dots, no commas
     else:
-        # No separators, parse directly
+        # Action: Parse directly.
         pass
 
     return val_str
@@ -124,18 +130,16 @@ def transform_monetary(value, decimal_separator, max_len=10):
     /// Ex: 1234.5678 -> 1234.56
     """
     try:
-        # O argumento 'decimal_separator' é ignorado pela nova lógica híbrida,
-        # mas mantido para compatibilidade.
         val_str = preserve_exact_decimal(value, decimal_separator)
 
         # Cria objeto Decimal para manipulação precisa
         d = Decimal(val_str)
 
         # Trunca para 2 casas decimais (ROUND_DOWN)
-        # '0.01' é o expoente que queremos manter
         truncated = d.quantize(Decimal("0.01"), rounding=ROUND_DOWN)
 
-        return f"{truncated:.2f}"
+        # Currency Columns: formatting must enforce "{:.2f}".format(value)
+        return "{:.2f}".format(truncated)
     except ValueError:
         # Propaga o erro para ser capturado pelo relatório de erros
         raise
@@ -156,11 +160,9 @@ def transform_aliquota(value, decimal_separator, max_len=None):
         # Enforce up to 4 decimals (truncate)
         truncated = d.quantize(Decimal("0.0001"), rounding=ROUND_DOWN)
 
-        # Remove zeros à direita e ponto decimal se não for necessário
-        # {:f} formata como fixed-point, evitando notação científica
-        formatted = "{:f}".format(truncated.normalize())
-
-        return formatted
+        # Rate (Alíquota): Allow up to 4 decimal places.
+        # "{:.4f}".format(value).rstrip('0').rstrip('.')
+        return "{:.4f}".format(truncated).rstrip("0").rstrip(".")
     except ValueError:
         raise
     except Exception as e:
