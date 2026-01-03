@@ -11,6 +11,7 @@ ou (False, "Mensagem de Erro") se inválido.
 import pandas as pd
 import re
 from datetime import datetime  # Adicionado para validação estrita de data
+from app.transformers import smart_clean_number  # Importação da limpeza inteligente
 
 # Dependência opcional para validação real de CPF/CNPJ
 try:
@@ -57,6 +58,7 @@ def validate_decimal(value, is_required=True, max_len=10, decimal_separator="vir
     """
     /// Validador para campos monetários (Valor Tributável, Valor Documento).
     /// Tenta converter o valor para float e verifica o tamanho.
+    /// AGORA USA 'smart_clean_number' para evitar remoção incorreta de pontos.
     """
     if pd.isna(value) or value is None or str(value).strip() == "":
         if is_required:
@@ -64,16 +66,20 @@ def validate_decimal(value, is_required=True, max_len=10, decimal_separator="vir
         return True, ""
 
     try:
-        cleaned_str = str(value).replace("R$", "").strip()
+        # Usa o parser híbrido inteligente
+        cleaned_val = smart_clean_number(value)
 
-        if decimal_separator == "virgula":
-            cleaned_str = cleaned_str.replace(".", "").replace(",", ".")
-        else:
-            cleaned_str = cleaned_str.replace(",", "")
+        # Se retornou vazio (string vazia), e era required
+        if cleaned_val == "" and is_required:
+             return False, "Campo obrigatório não preenchido."
 
-        cleaned_str = re.sub(r"[^0-9.]", "", cleaned_str)
+        # Se vazio e não required
+        if cleaned_val == "":
+             return True, ""
 
-        float_val = float(cleaned_str)
+        # cleaned_val pode ser float/int ou string.
+        # float(0) -> 0.0. float("0.00") -> 0.0.
+        float_val = float(cleaned_val)
         formatted_val = f"{float_val:.2f}"
 
         if len(formatted_val.split(".")[0]) > (max_len - 3):
@@ -90,14 +96,16 @@ def validate_aliquota(value, decimal_separator="virgula"):
     /// Validador para Alíquota.
     /// Regra: Obrigatório, numérico, entre 0 e 100.
     /// ESTRITO: Máximo de 4 casas decimais.
+    /// AGORA USA 'smart_clean_number'.
     """
     if pd.isna(value) or value is None or str(value).strip() == "":
         return False, "Alíquota é obrigatória."
 
     try:
-        cleaned_str = str(value).strip()
-        if decimal_separator == "virgula":
-            cleaned_str = cleaned_str.replace(",", ".")
+        cleaned_val = smart_clean_number(value)
+
+        # Converte para string para usar regex (re.match espera string)
+        cleaned_str = str(cleaned_val)
 
         # Validação estrita de formato numérico
         if not re.match(r"^\d+(\.\d+)?$", cleaned_str):
@@ -109,8 +117,7 @@ def validate_aliquota(value, decimal_separator="virgula"):
             if len(decimals) > 4:
                 return False, f"Alíquota tem {len(decimals)} casas decimais (máximo 4 permitido)."
 
-        cleaned_str = re.sub(r"[^0-9.]", "", cleaned_str)
-        float_val = float(cleaned_str)
+        float_val = float(cleaned_val)
 
         if not (0 <= float_val <= 100):
             return False, f"Alíquota '{float_val}%' fora do intervalo (0-100)."

@@ -13,49 +13,61 @@ import re
 from datetime import datetime
 from decimal import Decimal, InvalidOperation, ROUND_DOWN
 
-def normalize_currency(value):
-    """
-    /// Normaliza valores numéricos usando uma abordagem híbrida robusta.
-    /// Step 1: Check if already number.
-    /// Step 2: String cleanup.
-    /// Step 3: Heuristic Analysis (Scenario A/B/C).
-    """
-    if pd.isna(value) or value is None:
-        return "0.00"
 
-    # Step 1: Type Check
+def smart_clean_number(value):
+    """
+    /// Limpa e normaliza números usando uma abordagem híbrida consciente do contexto.
+    /// Algoritmo:
+    /// 1. Type Check: Se já for int/float, retorna imediatamente.
+    /// 2. Normalization: Converte para string e remove espaços.
+    /// 3. Decision Tree:
+    ///    - Branch A (Brazilian): Se tem vírgula, ela é o decimal. Remove pontos.
+    ///    - Branch B (System/International): Se tem ponto e NÃO tem vírgula, mantém ponto.
+    ///    - Branch C (Clean Integer): Parse normal.
+    """
+    # 1. Type Check
     if isinstance(value, (int, float)):
-        return str(value)
+        return value
 
-    # Step 2: String Cleanup
+    # 2. Normalization
     val_str = str(value).strip()
-    # Remove R$ e espaços extras
     val_str = val_str.replace("R$", "").strip()
 
     if not val_str:
-        return "0.00"
+        return ""
 
-    # Step 3: Heuristic Analysis
-
-    # Case A (Brazilian Standard): Comma exists
+    # 3. Decision Tree
+    # Branch A (Brazilian Format): Check if "," in value
     if "," in val_str:
-        # The comma IS the decimal separator. The dots are thousands.
-        # Action: Remove all dots. Replace comma with dot.
+        # Logic: If a comma exists, it is definitely the decimal separator.
+        # Action: Remove all dots (.). Replace comma (,) with dot (.).
         val_str = val_str.replace(".", "")
         val_str = val_str.replace(",", ".")
 
-    # Case B (System/International): Dot exists and NO Comma
+    # Branch B (System/International Format): Check if "." in value AND "," not in value
     elif "." in val_str:
-        # The dot IS the decimal separator.
-        # Action: Keep the dot. Parse as float (implicitly done by returning the string for Decimal)
+        # Logic: If there is a dot but NO comma, the dot is the decimal separator.
+        # Action: DO NOT REMOVE THE DOT. Parse directly as float.
         pass
 
-    # Case C (Clean Integer): No dots, no commas
+    # Branch C (Clean Integer): If neither dot nor comma exists
+    # Action: Parse as integer/float (implicitly done by returning clean string)
     else:
-        # Action: Parse directly.
         pass
 
     return val_str
+
+
+def normalize_currency(value):
+    """
+    /// Normaliza valores numéricos usando smart_clean_number.
+    /// Mantida para compatibilidade com chamadas existentes.
+    """
+    val = smart_clean_number(value)
+    if val == "":
+        return "0.00"
+    return str(val)
+
 
 def clean_numeric_string(value, max_len=None, pad_fixed_width=False):
     """
@@ -104,7 +116,7 @@ def clean_alphanumeric(value, max_len=None):
 def preserve_exact_decimal(value, decimal_separator="virgula"):
     """
     /// Preserva o valor decimal exato (Immutable Decimal).
-    /// Utiliza o 'normalize_currency' para inferir o formato.
+    /// Utiliza o 'smart_clean_number' (via normalize_currency) para inferir o formato.
     /// 1. Normaliza separadores (híbrido BR/US).
     /// 2. Valida se é numérico (Decimal).
     /// 3. Retorna a string exata, sem arredondamentos.
@@ -130,6 +142,9 @@ def transform_monetary(value, decimal_separator, max_len=10):
     /// Ex: 1234.5678 -> 1234.56
     """
     try:
+        # Usa preserve_exact_decimal para pegar o valor limpo (híbrido)
+        # decimal_separator argument is effectively ignored by smart_clean_number logic,
+        # but kept for API compatibility.
         val_str = preserve_exact_decimal(value, decimal_separator)
 
         # Cria objeto Decimal para manipulação precisa
@@ -139,6 +154,7 @@ def transform_monetary(value, decimal_separator, max_len=10):
         truncated = d.quantize(Decimal("0.01"), rounding=ROUND_DOWN)
 
         # Currency Columns: formatting must enforce "{:.2f}".format(value)
+        # This works correctly on the Decimal object.
         return "{:.2f}".format(truncated)
     except ValueError:
         # Propaga o erro para ser capturado pelo relatório de erros
