@@ -13,6 +13,44 @@ import re
 from datetime import datetime
 from decimal import Decimal, InvalidOperation, ROUND_DOWN
 
+def normalize_currency(value):
+    """
+    /// Normaliza valores numéricos usando uma abordagem híbrida robusta.
+    /// Scenario A (Comma exists): Assume formato BR (ponto=milhar, virgula=decimal).
+    /// Scenario B (Only Dot exists): Assume formato US (ponto=decimal).
+    /// Scenario C (Clean Number): Parse direto.
+    """
+    if pd.isna(value) or value is None:
+        return "0.00"
+
+    # 1. Input Analysis
+    val_str = str(value).strip()
+    # Remove R$ e espaços extras
+    val_str = val_str.replace("R$", "").strip()
+
+    if not val_str:
+        return "0.00"
+
+    # 2. Scenario A (Comma exists) -> Brazilian Standard
+    if "," in val_str:
+        # Remove dots (thousands)
+        val_str = val_str.replace(".", "")
+        # Replace comma with dot (decimal)
+        val_str = val_str.replace(",", ".")
+
+    # 3. Scenario B (Only Dot exists) -> US Standard
+    elif "." in val_str:
+        # CRITICAL: Treat the dot as a decimal separator. DO NOT REMOVE IT.
+        # Exception: Multiple dots logic is implicit (Decimal() validation will catch if invalid)
+        pass
+
+    # 4. Scenario C (Clean Number)
+    else:
+        # No separators, parse directly
+        pass
+
+    return val_str
+
 def clean_numeric_string(value, max_len=None, pad_fixed_width=False):
     """
     /// Limpa e padroniza campos numéricos.
@@ -60,35 +98,15 @@ def clean_alphanumeric(value, max_len=None):
 def preserve_exact_decimal(value, decimal_separator="virgula"):
     """
     /// Preserva o valor decimal exato (Immutable Decimal).
-    /// 1. Normaliza separadores (virgula -> ponto).
+    /// Utiliza o 'normalize_currency' para inferir o formato.
+    /// 1. Normaliza separadores (híbrido BR/US).
     /// 2. Valida se é numérico (Decimal).
     /// 3. Retorna a string exata, sem arredondamentos.
-    /// Ex: "10.50" -> "10.50", "0.3333" -> "0.3333".
     """
-    if pd.isna(value) or value is None or str(value).strip() == "":
-        return "0.00"
-
     # 1. Normaliza
-    # Remove R$ e espaços. (Permitimos R$ como prefixo comum, mas "10 reais" deve falhar)
-    val_str = str(value).replace("R$", "").strip()
+    val_str = normalize_currency(value)
 
-    # Remove separadores de milhares antes de normalizar o separador decimal
-    if decimal_separator == "virgula":
-        # Se decimal é vírgula, milhares deve ser ponto (se existir)
-        val_str = val_str.replace(".", "")
-    else:
-        # Se decimal é ponto, milhares deve ser vírgula (se existir)
-        val_str = val_str.replace(",", "")
-
-    # "1. Replaces comma with dot (normalization)."
-    # Normalizamos vírgula para ponto SEMPRE.
-    val_str = val_str.replace(",", ".")
-
-    # NÃO REMOVEMOS CARACTERES INVÁLIDOS.
-    # A validação deve ser ESTRITA ("Strict 'No Text' Validation").
-    # Se houver "10.00 reais", o Decimal vai falhar, e é isso que queremos.
-
-    # 2. Validate (No Text Allowed)
+    # 2. Validate (Strict 'No Text' Validation)
     try:
         # Verifica se é um número válido
         Decimal(val_str)
@@ -103,9 +121,11 @@ def transform_monetary(value, decimal_separator, max_len=10):
     """
     /// Normaliza valores monetários.
     /// Trunca para 2 casas decimais SEM arredondar.
-    /// Ex: 1234.5678 -> 1234.57
+    /// Ex: 1234.5678 -> 1234.56
     """
     try:
+        # O argumento 'decimal_separator' é ignorado pela nova lógica híbrida,
+        # mas mantido para compatibilidade.
         val_str = preserve_exact_decimal(value, decimal_separator)
 
         # Cria objeto Decimal para manipulação precisa
@@ -126,12 +146,25 @@ def transform_monetary(value, decimal_separator, max_len=10):
 def transform_aliquota(value, decimal_separator, max_len=None):
     """
     /// Normaliza a alíquota.
-    /// Mantém o valor exato, pois a validação já garantiu o formato.
+    /// Formata para até 4 casas decimais, preservando a precisão.
+    /// Ex: 2.5 -> 2.5, 2.12349 -> 2.1234
     """
     try:
-        return preserve_exact_decimal(value, decimal_separator)
+        val_str = preserve_exact_decimal(value, decimal_separator)
+        d = Decimal(val_str)
+
+        # Enforce up to 4 decimals (truncate)
+        truncated = d.quantize(Decimal("0.0001"), rounding=ROUND_DOWN)
+
+        # Remove zeros à direita e ponto decimal se não for necessário
+        # {:f} formata como fixed-point, evitando notação científica
+        formatted = "{:f}".format(truncated.normalize())
+
+        return formatted
     except ValueError:
         raise
+    except Exception as e:
+        raise ValueError(f"Erro ao transformar alíquota: {e}")
 
 
 def transform_item_lc(value):
