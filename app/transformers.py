@@ -216,7 +216,7 @@ def transform_item_lc(value):
 def transform_date(value):
     """
     /// Normaliza datas.
-    /// Converte "25/10/2025" ou "2025-10-25" para "dd/mm/aaaa" ("25/10/2025").
+    /// Converte "25/10/2025" ou "2025-10-25" para "ddmmaaaa" ("25102025").
     /// Assume que 'validate_date_format' já confirmou que é uma data válida.
     """
     if pd.isna(value) or value is None:
@@ -230,8 +230,8 @@ def transform_date(value):
     for fmt in formats:
         try:
             date_obj = datetime.strptime(val_str, fmt)
-            # REQUISITO: Output deve ser DD/MM/AAAA (com barras)
-            return date_obj.strftime("%d/%m/%Y")
+            # REQUISITO: Output deve ser DDMMAAAA (sem barras)
+            return date_obj.strftime("%d%m%Y")
         except ValueError:
             continue
 
