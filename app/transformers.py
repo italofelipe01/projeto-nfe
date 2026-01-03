@@ -13,6 +13,50 @@ import re
 from datetime import datetime
 from decimal import Decimal, InvalidOperation, ROUND_DOWN
 
+def normalize_currency(value):
+    """
+    /// Normaliza valores numéricos usando uma abordagem híbrida robusta.
+    /// Step 1: Check if already number.
+    /// Step 2: String cleanup.
+    /// Step 3: Heuristic Analysis (Scenario A/B/C).
+    """
+    if pd.isna(value) or value is None:
+        return "0.00"
+
+    # Step 1: Type Check
+    if isinstance(value, (int, float)):
+        return str(value)
+
+    # Step 2: String Cleanup
+    val_str = str(value).strip()
+    # Remove R$ e espaços extras
+    val_str = val_str.replace("R$", "").strip()
+
+    if not val_str:
+        return "0.00"
+
+    # Step 3: Heuristic Analysis
+
+    # Case A (Brazilian Standard): Comma exists
+    if "," in val_str:
+        # The comma IS the decimal separator. The dots are thousands.
+        # Action: Remove all dots. Replace comma with dot.
+        val_str = val_str.replace(".", "")
+        val_str = val_str.replace(",", ".")
+
+    # Case B (System/International): Dot exists and NO Comma
+    elif "." in val_str:
+        # The dot IS the decimal separator.
+        # Action: Keep the dot. Parse as float (implicitly done by returning the string for Decimal)
+        pass
+
+    # Case C (Clean Integer): No dots, no commas
+    else:
+        # Action: Parse directly.
+        pass
+
+    return val_str
+
 def clean_numeric_string(value, max_len=None, pad_fixed_width=False):
     """
     /// Limpa e padroniza campos numéricos.
@@ -60,35 +104,15 @@ def clean_alphanumeric(value, max_len=None):
 def preserve_exact_decimal(value, decimal_separator="virgula"):
     """
     /// Preserva o valor decimal exato (Immutable Decimal).
-    /// 1. Normaliza separadores (virgula -> ponto).
+    /// Utiliza o 'normalize_currency' para inferir o formato.
+    /// 1. Normaliza separadores (híbrido BR/US).
     /// 2. Valida se é numérico (Decimal).
     /// 3. Retorna a string exata, sem arredondamentos.
-    /// Ex: "10.50" -> "10.50", "0.3333" -> "0.3333".
     """
-    if pd.isna(value) or value is None or str(value).strip() == "":
-        return "0.00"
-
     # 1. Normaliza
-    # Remove R$ e espaços. (Permitimos R$ como prefixo comum, mas "10 reais" deve falhar)
-    val_str = str(value).replace("R$", "").strip()
+    val_str = normalize_currency(value)
 
-    # Remove separadores de milhares antes de normalizar o separador decimal
-    if decimal_separator == "virgula":
-        # Se decimal é vírgula, milhares deve ser ponto (se existir)
-        val_str = val_str.replace(".", "")
-    else:
-        # Se decimal é ponto, milhares deve ser vírgula (se existir)
-        val_str = val_str.replace(",", "")
-
-    # "1. Replaces comma with dot (normalization)."
-    # Normalizamos vírgula para ponto SEMPRE.
-    val_str = val_str.replace(",", ".")
-
-    # NÃO REMOVEMOS CARACTERES INVÁLIDOS.
-    # A validação deve ser ESTRITA ("Strict 'No Text' Validation").
-    # Se houver "10.00 reais", o Decimal vai falhar, e é isso que queremos.
-
-    # 2. Validate (No Text Allowed)
+    # 2. Validate (Strict 'No Text' Validation)
     try:
         # Verifica se é um número válido
         Decimal(val_str)
@@ -103,7 +127,7 @@ def transform_monetary(value, decimal_separator, max_len=10):
     """
     /// Normaliza valores monetários.
     /// Trunca para 2 casas decimais SEM arredondar.
-    /// Ex: 1234.5678 -> 1234.57
+    /// Ex: 1234.5678 -> 1234.56
     """
     try:
         val_str = preserve_exact_decimal(value, decimal_separator)
@@ -112,10 +136,10 @@ def transform_monetary(value, decimal_separator, max_len=10):
         d = Decimal(val_str)
 
         # Trunca para 2 casas decimais (ROUND_DOWN)
-        # '0.01' é o expoente que queremos manter
         truncated = d.quantize(Decimal("0.01"), rounding=ROUND_DOWN)
 
-        return f"{truncated:.2f}"
+        # Currency Columns: formatting must enforce "{:.2f}".format(value)
+        return "{:.2f}".format(truncated)
     except ValueError:
         # Propaga o erro para ser capturado pelo relatório de erros
         raise
@@ -126,12 +150,23 @@ def transform_monetary(value, decimal_separator, max_len=10):
 def transform_aliquota(value, decimal_separator, max_len=None):
     """
     /// Normaliza a alíquota.
-    /// Mantém o valor exato, pois a validação já garantiu o formato.
+    /// Formata para até 4 casas decimais, preservando a precisão.
+    /// Ex: 2.5 -> 2.5, 2.12349 -> 2.1234
     """
     try:
-        return preserve_exact_decimal(value, decimal_separator)
+        val_str = preserve_exact_decimal(value, decimal_separator)
+        d = Decimal(val_str)
+
+        # Enforce up to 4 decimals (truncate)
+        truncated = d.quantize(Decimal("0.0001"), rounding=ROUND_DOWN)
+
+        # Rate (Alíquota): Allow up to 4 decimal places.
+        # "{:.4f}".format(value).rstrip('0').rstrip('.')
+        return "{:.4f}".format(truncated).rstrip("0").rstrip(".")
     except ValueError:
         raise
+    except Exception as e:
+        raise ValueError(f"Erro ao transformar alíquota: {e}")
 
 
 def transform_item_lc(value):
