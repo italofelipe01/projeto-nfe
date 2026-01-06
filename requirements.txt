@@ -46,3 +46,7 @@ pylint>=3.0.0
 # --- Type Checking ---
 mypy>=1.7.0
 playwright-stealth>=2.0.0
+lxml
+signxml
+requests
+cryptography

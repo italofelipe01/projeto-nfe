@@ -15,6 +15,7 @@ from app.config import Config
 from app.converter import process_conversion
 from rpa.bot_controller import run_rpa_process
 from rpa.utils import setup_logger
+from app.services.issnet_client import IssNetClient
 
 
 bp = Blueprint("main", __name__)
@@ -219,3 +220,21 @@ def execute_rpa():
     return jsonify(
         {"success": True, "task_id": rpa_task_id, "message": "Robô iniciado."}
     )
+
+
+@bp.route("/api/consultar-notas", methods=["POST"])
+def consultar_notas():
+    data = request.get_json(silent=True)
+    if not data:
+        return jsonify({"error": "JSON inválido"}), 400
+
+    start_date = data.get("inicio")
+    end_date = data.get("fim")
+
+    if not start_date or not end_date:
+         return jsonify({"error": "Parâmetros 'inicio' e 'fim' são obrigatórios"}), 400
+
+    client = IssNetClient()
+    result = client.consultar_notas_por_periodo(start_date, end_date)
+
+    return jsonify(result)
