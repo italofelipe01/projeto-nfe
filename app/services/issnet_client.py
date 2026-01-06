@@ -1,87 +1,147 @@
 import os
+import logging
+from typing import Dict, Optional, Any, Union
 import requests
 import lxml.etree as etree
-from signxml import methods
-from signxml.signer import XMLSigner
-from signxml.verifier import XMLVerifier
+from signxml import XMLSigner, methods
 from cryptography.hazmat.primitives.serialization import pkcs12
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.backends import default_backend
 from dotenv import load_dotenv
 
-# Load environment variables
+# Carrega variáveis de ambiente
 load_dotenv()
-
 
 class IssNetClient:
     """
-    Client for ISS.net WebService (ABRASF 2.04) for Goiânia.
-    Handles XML construction, digital signature (DSig), and SOAP communication.
+    Cliente para integração com o WebService do ISS.net (Goiânia - ABRASF 2.04).
+    Responsável pela construção de XML seguro, assinatura digital e comunicação SOAP.
     """
 
-    # Namespaces required by ABRASF 2.04
-    NSMAP = {
+    # Namespaces requeridos pelo padrão ABRASF 2.04
+    NS_MAP = {
         None: "http://www.abrasf.org.br/nfse.xsd",
-        "ds": "http://www.w3.org/2000/09/xmldsig#",
+        "ds": "http://www.w3.org/2000/09/xmldsig#"
     }
 
-    # Endpoint for Goiânia (Production)
-    # Note: Using the URL provided in specs.
-    ENDPOINT = "https://nfse.issnetonline.com.br/abrasf204/goiania/nfse.asmx"
+    # URL do endpoint de produção (Goiânia)
+    ENDPOINT_URL = "https://nfse.issnetonline.com.br/abrasf204/goiania/nfse.asmx"
 
     def __init__(self):
         """
-        Initializes the client by loading the digital certificate from configuration.
+        Inicializa o cliente carregando as configurações e credenciais do ambiente.
         """
-        self.cert_path = os.getenv("CERTIFICATE_PATH")
-        self.cert_pass = os.getenv("CERTIFICATE_PASSWORD")
+        self.certificate_path = os.getenv("CERTIFICATE_PATH")
+        self.certificate_password = os.getenv("CERTIFICATE_PASSWORD")
+        self.cnpj_prestador = os.getenv("CNPJ_PRESTADOR")
+        self.im_prestador = os.getenv("IM_PRESTADOR")
 
-        if not self.cert_path or not self.cert_pass:
-            # We log a warning but don't crash yet, allowing instantiation for testing purposes
-            print("Warning: CERTIFICATE_PATH or CERTIFICATE_PASSWORD not set.")
-            self.private_key = None
-            self.certificate = None
-        else:
-            self._load_certificate()
+        self.private_key = None
+        self.certificate = None
 
-    def _load_certificate(self):
+        # Carrega as credenciais imediatamente na inicialização
+        self._load_credentials()
+
+    def _load_credentials(self):
         """
-        Loads the PKCS#12 (.pfx) certificate.
-        Extracts the private key and the certificate object.
+        Lê o arquivo .pfx (PKCS#12) e extrai a Chave Privada e o Certificado.
+        Armazena-os em memória para uso nas assinaturas.
         """
-        if self.cert_path is None or self.cert_pass is None:
-             raise RuntimeError("Certificate path or password is None.")
+        if not self.certificate_path or not self.certificate_password:
+             logging.warning("Credenciais não configuradas totalmente (CERTIFICATE_PATH ou CERTIFICATE_PASSWORD ausentes).")
+             return
 
         try:
-            with open(self.cert_path, "rb") as f:
+            with open(self.certificate_path, "rb") as f:
                 pfx_data = f.read()
 
-            private_key, certificate, additional_certificates = pkcs12.load_key_and_certificates(
+            # Carrega a chave privada e o certificado usando cryptography
+            private_key, certificate, _ = pkcs12.load_key_and_certificates(
                 pfx_data,
-                self.cert_pass.encode("utf-8"),
+                self.certificate_password.encode("utf-8"),
                 backend=default_backend()
             )
             self.private_key = private_key
             self.certificate = certificate
-        except Exception as e:
-            raise RuntimeError(f"Failed to load certificate: {e}")
+            logging.info("Credenciais e certificado carregados com sucesso.")
 
-    def _sign_xml(self, element_to_sign):
+        except Exception as e:
+            logging.error(f"Falha ao carregar credenciais: {e}")
+            raise RuntimeError(f"Erro ao carregar certificado digital: {e}")
+
+    def consultar_notas_por_periodo(self, start_date: str, end_date: str, page: int = 1) -> Dict[str, Any]:
         """
-        Digitally signs the XML element using signxml.
-        It appends the Signature tag to the element.
+        Consulta as notas fiscais de serviço prestado por período.
 
         Args:
-            element_to_sign (lxml.etree.Element): The element to be signed (typically the Pedido).
+            start_date (str): Data inicial no formato AAAA-MM-DD.
+            end_date (str): Data final no formato AAAA-MM-DD.
+            page (int): Número da página para paginação.
 
         Returns:
-            lxml.etree.Element: The signed XML element (with <Signature> appended).
+            Dict[str, Any]: Dicionário contendo a resposta processada do serviço.
+        """
+        # Passo 1: Criar o elemento raiz do payload (ConsultarNfseServicoPrestadoEnvio)
+        # Nota: Usamos lxml.etree.Element para construção orientada a objetos (seguro contra injeção)
+        root = etree.Element("ConsultarNfseServicoPrestadoEnvio", nsmap=self.NS_MAP)
+
+        # Passo 2: Construir a hierarquia do Pedido
+        # O Pedido é o elemento que será assinado
+        pedido = etree.Element("Pedido", nsmap=self.NS_MAP)
+
+        # InfPedidoConsultarNfseServicoPrestado
+        inf_pedido = etree.SubElement(pedido, "InfPedidoConsultarNfseServicoPrestado")
+        # Id é obrigatório para referência da assinatura
+        inf_pedido.set("Id", "pedido_consulta")
+
+        # Prestador
+        prestador = etree.SubElement(inf_pedido, "Prestador")
+        cpf_cnpj = etree.SubElement(prestador, "CpfCnpj")
+        cnpj = etree.SubElement(cpf_cnpj, "Cnpj")
+        cnpj.text = self.cnpj_prestador
+
+        if self.im_prestador:
+            inscricao = etree.SubElement(prestador, "InscricaoMunicipal")
+            inscricao.text = self.im_prestador
+
+        # PeriodoCompetencia
+        periodo = etree.SubElement(inf_pedido, "PeriodoCompetencia")
+        dt_inicial = etree.SubElement(periodo, "DataInicial")
+        dt_inicial.text = start_date
+        dt_final = etree.SubElement(periodo, "DataFinal")
+        dt_final.text = end_date
+
+        # Pagina
+        pagina_el = etree.SubElement(inf_pedido, "Pagina")
+        pagina_el.text = str(page)
+
+        # Passo 3: Assinar o XML
+        # Assinamos o elemento 'Pedido', e a assinatura será inserida dentro dele (Enveloped)
+        signed_pedido = self._sign_xml(pedido)
+
+        # Adiciona o Pedido assinado ao elemento raiz
+        root.append(signed_pedido)
+
+        # Passo 4: Enviar a requisição SOAP
+        return self._send_soap_request(root)
+
+    def _sign_xml(self, element_to_sign: etree.Element) -> etree.Element:
+        """
+        Assina digitalmente um elemento XML usando XMLSigner.
+
+        A assinatura é do tipo 'Enveloped' (a assinatura fica dentro do elemento assinado).
+        Utiliza algoritmo RSA-SHA1 e Canonicalização C14N.
+
+        Args:
+            element_to_sign (etree.Element): O elemento XML a ser assinado.
+
+        Returns:
+            etree.Element: O elemento assinado contendo a tag <Signature>.
         """
         if not self.private_key or not self.certificate:
-            raise RuntimeError("Cannot sign XML: Certificate not loaded.")
+            raise RuntimeError("Tentativa de assinar XML sem credenciais carregadas.")
 
-        # Using signxml to sign.
-        # We use 'enveloped' method to place Signature inside the element.
+        # Configura o assinante (Signer)
         signer = XMLSigner(
             method=methods.enveloped,
             signature_algorithm="rsa-sha1",
@@ -89,98 +149,50 @@ class IssNetClient:
             c14n_algorithm="http://www.w3.org/TR/2001/REC-xml-c14n-20010315"
         )
 
-        # Convert certificate to PEM for signxml (as strings to satisfy strict typing)
-        cert_pem_bytes = self.certificate.public_bytes(encoding=serialization.Encoding.PEM)
-        cert_pem = cert_pem_bytes.decode('utf-8')
-
-        key_pem_bytes = self.private_key.private_bytes(
+        # Prepara a chave e o certificado no formato PEM (bytes -> string)
+        key_pem = self.private_key.private_bytes(
             encoding=serialization.Encoding.PEM,
             format=serialization.PrivateFormat.TraditionalOpenSSL,
             encryption_algorithm=serialization.NoEncryption()
-        )
-        key_pem = key_pem_bytes.decode('utf-8')
+        ).decode("utf-8")
 
+        cert_pem = self.certificate.public_bytes(
+            encoding=serialization.Encoding.PEM
+        ).decode("utf-8")
+
+        # Realiza a assinatura
+        # O método sign retorna uma cópia do elemento com a assinatura anexada
         signed_element = signer.sign(
             element_to_sign,
             key=key_pem,
             cert=cert_pem,
-            always_add_key_value=True
+            always_add_key_value=True # Inclui X509Data/X509Certificate
         )
 
         return signed_element
 
-    def consultar_notas_por_periodo(self, start_date, end_date, page=1):
+    def _send_soap_request(self, payload_element: etree.Element) -> Dict[str, Any]:
         """
-        Queries service notes by period (ConsultarNfseServicoPrestado).
+        Envelopa o payload XML em um Envelope SOAP e realiza o POST request.
 
         Args:
-            start_date (str): Start date in YYYY-MM-DD.
-            end_date (str): End date in YYYY-MM-DD.
-            page (int): Page number.
+            payload_element (etree.Element): O payload XML (já assinado).
 
         Returns:
-            dict: Parsed response.
+            Dict[str, Any]: A resposta parseada.
         """
-        # 1. Build the XML Payload Components
+        # Serializa o objeto XML payload para string sem declaração (já que vai dentro do envelope)
+        payload_str = etree.tostring(payload_element, encoding="unicode", pretty_print=False)
 
-        # Root Env (will contain the signed Pedido)
-        envio = etree.Element("ConsultarNfseServicoPrestadoEnvio", nsmap=self.NSMAP)
-
-        # Pedido (to be signed)
-        pedido = etree.Element("Pedido", nsmap=self.NSMAP)
-
-        # InfPedido
-        inf_pedido = etree.SubElement(pedido, "InfPedidoConsultarNfseServicoPrestado")
-        inf_pedido.set("Id", "pedido_consulta_1")
-
-        prestador = etree.SubElement(inf_pedido, "Prestador")
-        cpf_cnpj = etree.SubElement(prestador, "CpfCnpj")
-        cnpj_elem = etree.SubElement(cpf_cnpj, "Cnpj")
-        cnpj_elem.text = os.getenv("CNPJ_PRESTADOR", "00000000000000")
-
-        inscricao = etree.SubElement(prestador, "InscricaoMunicipal")
-        inscricao.text = os.getenv("IM_PRESTADOR", "000000")
-
-        # PeriodoCompetencia
-        periodo = etree.SubElement(inf_pedido, "PeriodoCompetencia")
-        data_inicial = etree.SubElement(periodo, "DataInicial")
-        data_inicial.text = start_date
-        data_final = etree.SubElement(periodo, "DataFinal")
-        data_final.text = end_date
-
-        # Pagina
-        pagina = etree.SubElement(inf_pedido, "Pagina")
-        pagina.text = str(page)
-
-        # 2. Sign the Pedido
-        try:
-            if self.private_key:
-                # Sign the Pedido element.
-                # The result will be a new Pedido element containing the Signature.
-                signed_pedido = self._sign_xml(pedido)
-
-                # Append the signed pedido to the Envio
-                envio.append(signed_pedido)
-
-                xml_str = etree.tostring(envio, encoding="utf-8").decode("utf-8")
-            else:
-                # Fallback for no cert (dev mode without cert)
-                envio.append(pedido)
-                xml_str = etree.tostring(envio, encoding="utf-8").decode("utf-8")
-        except Exception as e:
-            print(f"Signing failed: {e}")
-            # Ensure we still have a structure even if signing fails, for debugging
-            if len(envio) == 0:
-                envio.append(pedido)
-            xml_str = etree.tostring(envio, encoding="utf-8").decode("utf-8")
-
-        # 3. Wrap in SOAP Envelope
+        # Constrói o Envelope SOAP.
+        # Aqui o uso de f-string é aceitável pois é apenas o wrapper externo padrão.
+        # O conteúdo interno 'payload_str' foi gerado de forma segura via lxml.
         soap_envelope = f"""<?xml version="1.0" encoding="utf-8"?>
 <soap:Envelope xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/">
   <soap:Body>
     <ConsultarNfseServicoPrestado xmlns="http://www.abrasf.org.br/nfse.xsd">
       <nfseCabecMsg><![CDATA[<?xml version="1.0" encoding="UTF-8"?><cabecalho versao="2.04" xmlns="http://www.abrasf.org.br/nfse.xsd"><versaoDados>2.04</versaoDados></cabecalho>]]></nfseCabecMsg>
-      <nfseDadosMsg><![CDATA[{xml_str}]]></nfseDadosMsg>
+      <nfseDadosMsg><![CDATA[{payload_str}]]></nfseDadosMsg>
     </ConsultarNfseServicoPrestado>
   </soap:Body>
 </soap:Envelope>"""
@@ -190,50 +202,80 @@ class IssNetClient:
             "SOAPAction": "http://www.abrasf.org.br/nfse.xsd/ConsultarNfseServicoPrestado"
         }
 
-        # 4. Send Request
         try:
-            response = requests.post(self.ENDPOINT, data=soap_envelope, headers=headers, timeout=30)
+            # Realiza a requisição POST
+            response = requests.post(
+                self.ENDPOINT_URL,
+                data=soap_envelope.encode('utf-8'), # Garante encoding correto
+                headers=headers,
+                timeout=30
+            )
             response.raise_for_status()
-            return self._parse_response(response.content)
-        except requests.exceptions.RequestException as e:
-            return {"error": f"HTTP Error: {str(e)}"}
-        except Exception as e:
-            return {"error": f"Unexpected Error: {str(e)}"}
 
-    def _parse_response(self, content):
+            # Retorna a resposta parseada
+            return self._parse_response(response.content)
+
+        except requests.exceptions.RequestException as e:
+            logging.error(f"Erro na requisição SOAP: {e}")
+            return {"error": str(e), "type": "NetworkError"}
+        except Exception as e:
+            logging.error(f"Erro inesperado no envio SOAP: {e}")
+            return {"error": str(e), "type": "UnexpectedError"}
+
+    def _parse_response(self, xml_content: bytes) -> Dict[str, Any]:
         """
-        Parses the SOAP response.
+        Parseia a resposta XML, removendo namespaces para facilitar o manuseio.
+
+        Args:
+            xml_content (bytes): O conteúdo bruto da resposta.
+
+        Returns:
+            Dict[str, Any]: Dicionário com os dados da resposta.
         """
         try:
-            # Parse SOAP Envelope
-            root = etree.fromstring(content)
+            root = etree.fromstring(xml_content)
 
-            # Simple search for the result tag
-            result_element = root.find(".//{http://www.abrasf.org.br/nfse.xsd}ConsultarNfseServicoPrestadoResult")
-            if result_element is None:
-                # Try without namespace or check localname
-                for elem in root.iter():
-                    if "ConsultarNfseServicoPrestadoResult" in elem.tag:
-                        result_element = elem
-                        break
+            # Remove namespaces de todos os elementos para simplificar o parsing
+            # Utilizando root.iter() conforme recomendado
+            for elem in root.iter():
+                if not hasattr(elem.tag, 'find'): continue  # Pula comentários/PIs
+                i = elem.tag.find('}')
+                if i >= 0:
+                    elem.tag = elem.tag[i+1:]
 
-            if result_element is not None and result_element.text:
-                inner_xml = result_element.text
+            # Busca o resultado específico da operação
+            # O retorno geralmente está em ConsultarNfseServicoPrestadoResult
+            result_node = root.find(".//ConsultarNfseServicoPrestadoResult")
+
+            if result_node is not None and result_node.text:
+                # O conteúdo dentro de Result geralmente é outro XML (string escapada ou CDATA)
+                inner_xml = result_node.text
                 inner_root = etree.fromstring(inner_xml.encode('utf-8'))
+
+                # Novamente remove namespaces do XML interno
+                for elem in inner_root.iter():
+                    if not hasattr(elem.tag, 'find'): continue
+                    i = elem.tag.find('}')
+                    if i >= 0:
+                        elem.tag = elem.tag[i+1:]
+
                 return self._etree_to_dict(inner_root)
 
-            return {"raw_response": content.decode('utf-8')}
+            # Caso não encontre o result esperado ou esteja vazio
+            return {"raw_response": xml_content.decode('utf-8', errors='ignore')}
 
+        except etree.XMLSyntaxError as e:
+            logging.error(f"Erro de sintaxe XML na resposta: {e}")
+            return {"error": "Invalid XML Response", "details": str(e)}
         except Exception as e:
-            return {"error": f"Parsing Error: {str(e)}", "raw": content.decode('utf-8')}
+            logging.error(f"Erro ao processar resposta: {e}")
+            return {"error": "Processing Error", "details": str(e)}
 
-    def _etree_to_dict(self, t):
-        """Helper to convert etree to dict."""
-        tag_name = t.tag.split('}')[-1]
-
-        # Initialize dict with attributes if they exist, else empty dict (NOT None)
-        d = {tag_name: {} if t.attrib else {}}
-
+    def _etree_to_dict(self, t: etree.Element) -> Dict[str, Any]:
+        """
+        Função auxiliar recursiva para converter lxml.etree.Element em dicionário Python.
+        """
+        d: Dict[str, Any] = {t.tag: {} if t.attrib else None}
         children = list(t)
         if children:
             dd = {}
@@ -245,21 +287,14 @@ class IssNetClient:
                         dd[k].append(v)
                     else:
                         dd[k] = v
-            d[tag_name] = dd
-
-        # Add attributes
+            d[t.tag] = dd
         if t.attrib:
-            # Ensure we are updating a dict
-            if not isinstance(d[tag_name], dict):
-                d[tag_name] = {'#text': d[tag_name]} # Convert primitive to dict if needed (unlikely path if logic holds)
-            d[tag_name].update(('@' + k, v) for k, v in t.attrib.items())
-
-        # Add text
+            d[t.tag].update(('@' + k, v) for k, v in t.attrib.items())
         if t.text:
             text = t.text.strip()
-            if text:
-                if children or t.attrib:
-                    d[tag_name]['#text'] = text
-                else:
-                    d[tag_name] = text
+            if children or t.attrib:
+                if text:
+                  d[t.tag]['#text'] = text
+            else:
+                d[t.tag] = text
         return d
