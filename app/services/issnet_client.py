@@ -1,7 +1,9 @@
 import os
 import requests
-from lxml import etree
-from signxml import XMLSigner, XMLVerifier, methods
+import lxml.etree as etree
+from signxml import methods
+from signxml.signer import XMLSigner
+from signxml.verifier import XMLVerifier
 from cryptography.hazmat.primitives.serialization import pkcs12
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.backends import default_backend
@@ -47,6 +49,9 @@ class IssNetClient:
         Loads the PKCS#12 (.pfx) certificate.
         Extracts the private key and the certificate object.
         """
+        if self.cert_path is None or self.cert_pass is None:
+             raise RuntimeError("Certificate path or password is None.")
+
         try:
             with open(self.cert_path, "rb") as f:
                 pfx_data = f.read()
@@ -84,13 +89,16 @@ class IssNetClient:
             c14n_algorithm="http://www.w3.org/TR/2001/REC-xml-c14n-20010315"
         )
 
-        # Convert certificate to PEM for signxml
-        cert_pem = self.certificate.public_bytes(encoding=serialization.Encoding.PEM)
-        key_pem = self.private_key.private_bytes(
+        # Convert certificate to PEM for signxml (as strings to satisfy strict typing)
+        cert_pem_bytes = self.certificate.public_bytes(encoding=serialization.Encoding.PEM)
+        cert_pem = cert_pem_bytes.decode('utf-8')
+
+        key_pem_bytes = self.private_key.private_bytes(
             encoding=serialization.Encoding.PEM,
             format=serialization.PrivateFormat.TraditionalOpenSSL,
             encryption_algorithm=serialization.NoEncryption()
         )
+        key_pem = key_pem_bytes.decode('utf-8')
 
         signed_element = signer.sign(
             element_to_sign,
@@ -119,10 +127,6 @@ class IssNetClient:
         envio = etree.Element("ConsultarNfseServicoPrestadoEnvio", nsmap=self.NSMAP)
 
         # Pedido (to be signed)
-        # Note: We create it standalone first to sign it, then we will attach it to envio?
-        # Or we create it, sign it, and signxml returns the signed object which we attach.
-        # However, ABRASF uses namespaces. We should be careful with namespace inheritance.
-
         pedido = etree.Element("Pedido", nsmap=self.NSMAP)
 
         # InfPedido
@@ -225,7 +229,11 @@ class IssNetClient:
 
     def _etree_to_dict(self, t):
         """Helper to convert etree to dict."""
-        d = {t.tag.split('}')[-1]: {} if t.attrib else None}
+        tag_name = t.tag.split('}')[-1]
+
+        # Initialize dict with attributes if they exist, else empty dict (NOT None)
+        d = {tag_name: {} if t.attrib else {}}
+
         children = list(t)
         if children:
             dd = {}
@@ -237,14 +245,21 @@ class IssNetClient:
                         dd[k].append(v)
                     else:
                         dd[k] = v
-            d = {t.tag.split('}')[-1]: dd}
+            d[tag_name] = dd
+
+        # Add attributes
         if t.attrib:
-            d[t.tag.split('}')[-1]].update(('@' + k, v) for k, v in t.attrib.items())
+            # Ensure we are updating a dict
+            if not isinstance(d[tag_name], dict):
+                d[tag_name] = {'#text': d[tag_name]} # Convert primitive to dict if needed (unlikely path if logic holds)
+            d[tag_name].update(('@' + k, v) for k, v in t.attrib.items())
+
+        # Add text
         if t.text:
             text = t.text.strip()
-            if children or t.attrib:
-                if text:
-                  d[t.tag.split('}')[-1]]['#text'] = text
-            else:
-                d[t.tag.split('}')[-1]] = text
+            if text:
+                if children or t.attrib:
+                    d[tag_name]['#text'] = text
+                else:
+                    d[tag_name] = text
         return d
