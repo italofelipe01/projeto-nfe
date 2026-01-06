@@ -3,7 +3,8 @@ import logging
 from typing import Dict, Optional, Any, Union
 import requests
 import lxml.etree as etree
-from signxml import XMLSigner, methods
+from signxml.signer import XMLSigner
+from signxml import methods
 from cryptography.hazmat.primitives.serialization import pkcs12
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.backends import default_backend
