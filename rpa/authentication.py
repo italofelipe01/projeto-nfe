@@ -95,38 +95,52 @@ class ISSAuthenticator:
                 status_callback("Navegando para o portal...")
             self.page.goto(ISSNET_URL, timeout=LOGIN_TIMEOUT)
 
-            # --- Detecção e Espera Passiva do Cloudflare ---
+            # --- Detecção e Tratamento Robusto de Cloudflare ---
             user_selector = SELECTORS["login"]["username_input"]
             try:
-                # Espera o seletor do login aparecer. Se aparecer, o Cloudflare já foi resolvido.
+                # 1. Verifica preliminar de Cloudflare (Título ou Iframes)
+                page_title = self.page.title().lower()
+                if "just a moment" in page_title or "challenge" in page_title:
+                    logger.warning(f"[{self.task_id}] Cloudflare detectado no carregamento inicial.")
+                    if status_callback:
+                        status_callback("Resolvendo desafio de segurança...")
+
+                    # Tenta interagir com checkbox de "Verify you are human"
+                    try:
+                        # Busca por iframes de challenge (Turnstile, cf-challenge)
+                        frames = self.page.frames
+                        challenge_found = False
+                        for frame in frames:
+                            if "cloudflare" in frame.url or "turnstile" in frame.url:
+                                logger.info(f"[{self.task_id}] Iframe de desafio encontrado: {frame.url}")
+                                # Tenta clicar no checkbox dentro do iframe
+                                checkbox = frame.locator("input[type='checkbox'], #challenge-stage")
+                                if checkbox.count() > 0:
+                                    logger.info(f"[{self.task_id}] Tentando clicar no checkbox do Cloudflare...")
+                                    checkbox.first.click(force=True)
+                                    time.sleep(2)
+                                    challenge_found = True
+
+                        if not challenge_found:
+                            # Tenta clicar por coordenadas se não achar seletor (fallback)
+                            # Geralmente o checkbox está no meio da tela em desafios full-page
+                            logger.debug(f"[{self.task_id}] Checkbox não encontrado via seletor. Tentando clique central cego...")
+                            # self.page.mouse.click(x=300, y=300) # Comentado para evitar cliques erráticos sem certeza
+                    except Exception as cf_e:
+                        logger.warning(f"[{self.task_id}] Erro ao tentar interagir com Cloudflare: {cf_e}")
+
+                # 2. Espera o seletor do login aparecer (Isso confirma que o Cloudflare passou)
                 self.page.wait_for_selector(
                     user_selector, state="visible", timeout=LOGIN_TIMEOUT
                 )
                 logger.info(f"[{self.task_id}] Página de login carregada com sucesso.")
 
             except PlaywrightTimeoutError:
-                # Se o seletor não aparecer, verifica se é por causa do Cloudflare
-                page_title = self.page.title().lower()
-                if "just a moment" in page_title or "challenge" in page_title:
-                    logger.warning(
-                        f"[{self.task_id}] Desafio Cloudflare detectado. Aguardando resolução passivamente..."
-                    )
-                    if status_callback:
-                        status_callback("Aguardando verificação de segurança...")
-
-                    # Espera passiva: aguarda a URL mudar OU o seletor de login aparecer,
-                    # o que acontecer primeiro. O timeout aqui deve ser generoso.
-                    self.page.wait_for_selector(
-                        user_selector, state="visible", timeout=120000
-                    )
-                    logger.info(
-                        f"[{self.task_id}] Desafio Cloudflare resolvido. Prosseguindo com o login."
-                    )
-                else:
-                    # Se não é Cloudflare, é um erro de timeout genuíno.
-                    raise AuthenticationError(
-                        "Timeout ao carregar a página de login. O portal pode estar offline."
-                    )
+                # Se após o timeout o login não apareceu, assume falha crítica de acesso
+                logger.error(f"[{self.task_id}] Timeout: Tela de login não carregou. Possível bloqueio Cloudflare persistente.")
+                raise AuthenticationError(
+                    "Timeout ao carregar a página de login. O portal pode estar offline ou bloqueado por Cloudflare."
+                )
 
             # 2. Preenchimento do Usuário
             logger.debug(f"[{self.task_id}] Preenchendo campo de usuário.")

@@ -141,15 +141,17 @@ def update_rpa_status(task_id, message, success=None, details=None):
             rpa_tasks[task_id]["details"] = details
 
 
-def rpa_worker(task_id, file_path, inscricao, is_dev):
+def rpa_worker(task_id, file_path, inscricao, is_dev, mes, ano):
     """Wrapper para rodar o RPA em thread separada."""
-    logger.info(f"[{task_id}] Iniciando worker RPA para IM: {inscricao}")
+    logger.info(f"[{task_id}] Iniciando worker RPA para IM: {inscricao} (Comp: {mes}/{ano})")
     try:
         result = run_rpa_process(
             task_id=task_id,
             file_path=file_path,
             inscricao_municipal=inscricao,
             is_dev_mode=is_dev,
+            mes=mes,
+            ano=ano,
             status_callback=lambda msg: update_rpa_status(task_id, msg),
         )
         # Atualiza status final baseado no retorno do bot
@@ -185,6 +187,8 @@ def execute_rpa():
     filename = data.get("filename")
     mode = data.get("mode", "dev")
     inscricao_municipal = data.get("inscricao_municipal")
+    mes = data.get("mes")
+    ano = data.get("ano")
 
     if not filename:
         return jsonify({"success": False, "message": "Nome do arquivo ausente."}), 400
@@ -212,7 +216,7 @@ def execute_rpa():
 
     # Inicia Thread
     thread = threading.Thread(
-        target=rpa_worker, args=(rpa_task_id, file_path, inscricao_municipal, is_dev)
+        target=rpa_worker, args=(rpa_task_id, file_path, inscricao_municipal, is_dev, mes, ano)
     )
     thread.start()
 

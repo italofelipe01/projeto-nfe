@@ -301,7 +301,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 body: JSON.stringify({ 
                     filename: filename,
                     inscricao_municipal: inscricao,
-                    mode: 'dev'
+                    mode: 'dev',
+                    mes: mesInput.value,
+                    ano: anoInput.value
                 }),
             });
 

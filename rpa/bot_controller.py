@@ -25,6 +25,8 @@ class ISSBot:
         self,
         file_path: str,
         inscricao_municipal: str,
+        mes: str,
+        ano: str,
         status_callback=None,
     ) -> dict:
         """
@@ -98,7 +100,7 @@ class ISSBot:
                     )
 
                 nav = ISSNavigator(self.page, self.task_id)
-                nav.select_contribuinte(inscricao_municipal, cnpj)
+                nav.select_contribuinte(inscricao_municipal, cnpj, mes, ano)
 
                 # FASE 3: UPLOAD
                 if status_callback:
@@ -163,7 +165,9 @@ def run_rpa_process(
     file_path: str,
     inscricao_municipal: str,
     is_dev_mode: bool = False,
+    mes: str = "",
+    ano: str = "",
     status_callback=None,
 ):
     bot = ISSBot(task_id, is_dev_mode)
-    return bot.execute(file_path, inscricao_municipal, status_callback)
+    return bot.execute(file_path, inscricao_municipal, mes, ano, status_callback)

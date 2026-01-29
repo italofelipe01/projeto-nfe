@@ -181,6 +181,8 @@ SELECTORS: Dict[str, Any] = {
         "input_inscricao": "#txtCae",
         "input_filtro_cnpj": "#TxtCPF",
         "btn_localizar": "#imbLocalizar",
+        "ddl_mes": "#ddlMes",
+        "ddl_ano": "#ddlAno",
 
         # O seletor da linha específica foi removido.
         # A nova lógica em portal_navigator.py constrói o seletor dinamicamente.

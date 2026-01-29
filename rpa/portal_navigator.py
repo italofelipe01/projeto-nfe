@@ -36,24 +36,28 @@ class ISSNavigator:
         self.page = page
         self.task_id = task_id
 
-    def select_contribuinte(self, inscricao: str, cnpj: str):
+    def select_contribuinte(self, inscricao: str, cnpj: str, mes: str, ano: str):
         """
-        Preenche a Inscrição Municipal e o CNPJ, localiza a empresa e lida com
-        o desafio Cloudflare que pode ocorrer após a busca.
+        Preenche a Inscrição Municipal, CNPJ e Competência (Mês/Ano), localiza a empresa
+        e lida com o desafio Cloudflare que pode ocorrer após a busca.
 
         Args:
             inscricao (str): A Inscrição Municipal da empresa.
             cnpj (str): O CNPJ da empresa.
+            mes (str): Mês de competência (1-12).
+            ano (str): Ano de competência (ex: 2025).
 
         Raises:
             NavigationError: Se a empresa não for encontrada ou se ocorrer um erro de navegação.
         """
-        logger.info(f"[{self.task_id}] 🏢 Iniciando seleção com Inscrição '{inscricao}' e CNPJ '{cnpj}'.")
+        logger.info(f"[{self.task_id}] 🏢 Iniciando seleção: IM='{inscricao}', CNPJ='{cnpj}', Comp='{mes}/{ano}'.")
 
         try:
             # 1. Aguarda e preenche os campos de filtro
             inscricao_selector = SELECTORS["selecao_empresa"]["input_inscricao"]
             cnpj_selector = SELECTORS["selecao_empresa"]["input_filtro_cnpj"]
+            mes_selector = SELECTORS["selecao_empresa"]["ddl_mes"]
+            ano_selector = SELECTORS["selecao_empresa"]["ddl_ano"]
 
             self.page.wait_for_selector(inscricao_selector, state="visible", timeout=15000)
             logger.debug(f"[{self.task_id}] Formulário de seleção visível. Preenchendo dados...")
@@ -66,10 +70,27 @@ class ISSNavigator:
             self.page.fill(cnpj_selector, cnpj)
             self.page.press(cnpj_selector, "Tab")  # Dispara on-blur
 
+            # Seleciona Mês e Ano (Requisito Crítico 1: Contexto de Competência)
+            if mes and ano:
+                logger.debug(f"[{self.task_id}] Selecionando competência: {mes}/{ano}")
+                self.page.select_option(mes_selector, str(mes))
+                self.page.select_option(ano_selector, str(ano))
+                # Aguarda brevemente para processamento de eventos do dropdown
+                time.sleep(0.5)
+
             # 2. Executa a busca
-            logger.debug(f"[{self.task_id}] Filtro preenchido. Clicando em 'Localizar'...")
+            logger.debug(f"[{self.task_id}] Filtros preenchidos. Clicando em 'Localizar'...")
             self.page.click(SELECTORS["selecao_empresa"]["btn_localizar"])
-            time.sleep(1) # Pausa para a requisição iniciar
+
+            # Requisito Crítico 3: ASP.NET PostBack Synchronization
+            # Aguarda o recarregamento da página ou a resposta do servidor
+            try:
+                # Espera pelo evento de carga de rede (networkidle) que indica fim do PostBack
+                self.page.wait_for_load_state("networkidle", timeout=10000)
+            except Exception:
+                # Fallback: sleep fixo se networkidle falhar (comum em ASP.NET com AJAX parcial)
+                logger.warning(f"[{self.task_id}] NetworkIdle timeout no PostBack. Usando wait fixo.")
+                time.sleep(3)
 
             # 3. Validação de Sucesso com Tratamento de Cloudflare
             logger.debug(f"[{self.task_id}] Validando entrada no painel da empresa...")
