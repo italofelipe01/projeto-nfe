@@ -102,6 +102,10 @@ class ISSBot:
                 nav = ISSNavigator(self.page, self.task_id)
                 nav.select_contribuinte(inscricao_municipal, cnpj, mes, ano)
 
+                # FASE 2.5: NAVEGAÇÃO PARA IMPORTAÇÃO
+                # Garante que o robô esteja na página correta antes de tentar upload
+                nav.navigate_to_import_page()
+
                 # FASE 3: UPLOAD
                 if status_callback:
                     status_callback("Enviando Arquivo...")
