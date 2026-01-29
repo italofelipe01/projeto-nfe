@@ -83,6 +83,15 @@ class ISSNavigator:
             self.page.click(SELECTORS["selecao_empresa"]["btn_localizar"])
 
             # Requisito Crítico 3: ASP.NET PostBack Synchronization
+            # Aguarda o overlay de carregamento aparecer e sumir para garantir sincronia
+            loading_sel = SELECTORS["selecao_empresa"]["loading_overlay"]
+            try:
+                self.page.wait_for_selector(loading_sel, state="visible", timeout=5000)
+                self.page.wait_for_selector(loading_sel, state="hidden", timeout=15000)
+            except PlaywrightTimeoutError:
+                # Se o overlay não aparecer ou não sumir, logamos mas tentamos seguir
+                logger.warning(f"[{self.task_id}] Overlay de loading não detectado ou demorou a sumir.")
+
             # Aguarda o recarregamento da página ou a resposta do servidor
             try:
                 # Espera pelo evento de carga de rede (networkidle) que indica fim do PostBack
@@ -129,12 +138,25 @@ class ISSNavigator:
     def navigate_to_import_page(self) -> None:
         """
         Navega diretamente para a página de importação de serviços contratados.
+        Utiliza a URL base atual para evitar perda de sessão em caso de troca de domínio (Deep Linking seguro).
         """
-        logger.info(
-            f"[{self.task_id}] 🧭 Navegando para a tela de Importação de Serviços..."
-        )
         try:
-            self.page.goto(URLS["importacao"], timeout=NAVIGATION_TIMEOUT)
+            # Construção dinâmica da URL para preservar o domínio atual (issnetonline ou notacontrol)
+            current_url = self.page.url
+            base_marker = "/online/"
+
+            if base_marker in current_url:
+                base_url = current_url.split(base_marker)[0] + base_marker
+                target_url = f"{base_url}Servicos_Contratados/ImportacaoServicosContratados.aspx"
+            else:
+                # Fallback para a URL estática configurada
+                target_url = URLS["importacao"]
+
+            logger.info(
+                f"[{self.task_id}] 🧭 Navegando para a tela de Importação: {target_url}"
+            )
+
+            self.page.goto(target_url, timeout=NAVIGATION_TIMEOUT)
             # Confirma que a página carregou verificando um elemento chave
             self.page.wait_for_selector(
                 SELECTORS["importacao"]["input_arquivo"],

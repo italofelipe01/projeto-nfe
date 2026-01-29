@@ -48,6 +48,8 @@ ISSNET_URL = os.getenv(
 )
 
 # URLs Diretas (Para navegação rápida se necessário)
+# Nota: O bot prioriza a construção dinâmica da URL com base no domínio atual (issnetonline ou notacontrol)
+# para evitar perda de sessão. As URLs abaixo são utilizadas apenas como fallback.
 URLS: Dict[str, str] = {
     "importacao": "https://www.issnetonline.com.br/goiania/online/Servicos_Contratados/ImportacaoServicosContratados.aspx",
     "consulta_importacao": "https://www.issnetonline.com.br/goiania/online/Servicos_Contratados/ConsultaImportacaoServicosContratados.aspx",
