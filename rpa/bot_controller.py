@@ -98,7 +98,7 @@ class ISSBot:
                     )
 
                 nav = ISSNavigator(self.page, self.task_id)
-                nav.select_contribuinte(cnpj)
+                nav.select_contribuinte(inscricao_municipal, cnpj)
 
                 # FASE 3: UPLOAD
                 if status_callback:
