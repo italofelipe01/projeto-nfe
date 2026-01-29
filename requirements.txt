@@ -1,48 +1,20 @@
-# ========================================
-# DEPENDÊNCIAS DO PROJETO
-# ========================================
-
-# --- Backend (Flask) ---
-Flask>=3.0.0
-Werkzeug>=3.0.0
-
-# --- Processamento de Dados ---
-pandas>=2.1.3
-openpyxl>=3.1.2
-
-# --- Validação de Dados ---
-validate-docbr>=0.11.0
-
-# --- Variáveis de Ambiente ---
-python-dotenv>=1.0.0
-
-# ========================================
-# DEPENDÊNCIAS DO RPA
-# ========================================
-
-# --- Automação Web ---
-playwright>=1.40.0
-
-# Nota: Após instalar o Playwright, execute:
-# playwright install chromium
-
-# --- Opcional: Selenium (caso queira testar ambos) ---
-# selenium>=4.15.0
-# webdriver-manager>=4.0.1
-
-# ========================================
-# DEPENDÊNCIAS DE DESENVOLVIMENTO
-# ========================================
-
-# --- Testes ---
-pytest>=7.4.0
-pytest-playwright>=0.4.3
-
-# --- Qualidade de Código ---
-black>=23.0.0
-flake8>=6.1.0
-pylint>=3.0.0
-
-# --- Type Checking ---
-mypy>=1.7.0
-playwright-stealth>=2.0.0
+blinker==1.9.0
+click==8.3.1
+colorama==0.4.6
+et_xmlfile==2.0.0
+Flask==3.1.2
+greenlet==3.3.1
+itsdangerous==2.2.0
+Jinja2==3.1.6
+MarkupSafe==3.0.3
+numpy==2.4.1
+openpyxl==3.1.5
+pandas==3.0.0
+playwright==1.57.0
+pyee==13.0.0
+python-dateutil==2.9.0.post0
+python-dotenv==1.2.1
+six==1.17.0
+typing_extensions==4.15.0
+tzdata==2025.3
+Werkzeug==3.1.5
