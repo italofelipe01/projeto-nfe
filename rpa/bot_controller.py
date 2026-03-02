@@ -1,8 +1,15 @@
 # -*- coding: utf-8 -*-
 from typing import Optional
 import time
+from pathlib import Path
 from playwright.sync_api import sync_playwright, Browser, BrowserContext, Page
-from rpa.config_rpa import CREDENTIALS, BROWSER_CONFIG, DEFAULT_TIMEOUT
+from rpa.config_rpa import (
+    CREDENTIALS,
+    BROWSER_CONFIG,
+    DEFAULT_TIMEOUT,
+    POLLING_MAX_RETRIES,
+    POLLING_INTERVAL,
+)
 from rpa.utils import setup_logger
 from rpa.authentication import ISSAuthenticator
 from rpa.portal_navigator import ISSNavigator
@@ -120,6 +127,20 @@ class ISSBot:
                 parser = ISSResultParser(self.page, self.task_id)
                 resultado = parser.parse()
 
+                result_state = resultado.get("state", "unknown")
+                if result_state in ("pending", "unknown"):
+                    if status_callback:
+                        status_callback("Importação enviada. Aguardando processamento final...")
+
+                    nav.ir_para_consulta()
+                    tracked_file = Path(file_path).name
+                    resultado = self._poll_consulta_status(
+                        navigator=nav,
+                        parser=parser,
+                        tracked_filename=tracked_file,
+                        status_callback=status_callback,
+                    )
+
                 if status_callback:
                     status_callback("Concluído.")
 
@@ -162,6 +183,73 @@ class ISSBot:
                     self.browser.close()
                 if playwright:
                     playwright.stop()
+
+    def _poll_consulta_status(
+        self,
+        navigator: ISSNavigator,
+        parser: ISSResultParser,
+        tracked_filename: str,
+        status_callback=None,
+    ) -> dict:
+        """
+        Realiza polling finito na tela de consulta até estado terminal.
+        Evita loops infinitos e retorna sucesso/erro definitivo ou timeout controlado.
+        """
+        last_status = "Aguardando"
+        last_details = ""
+
+        for attempt in range(1, POLLING_MAX_RETRIES + 1):
+            if status_callback:
+                status_callback(
+                    f"Consultando processamento ({attempt}/{POLLING_MAX_RETRIES})..."
+                )
+
+            try:
+                navigator.atualizar_grid()
+            except Exception as nav_error:
+                logger.warning(
+                    f"[{self.task_id}] Falha ao atualizar grid na tentativa {attempt}: {nav_error}"
+                )
+
+            current_status = parser.ler_status_processamento(tracked_filename)
+            status_lower = current_status.lower()
+            last_status = current_status
+
+            if "sucesso" in status_lower or "êxito" in status_lower:
+                return {
+                    "success": True,
+                    "message": "Processado com Sucesso!",
+                    "details": current_status,
+                    "state": "success",
+                }
+
+            if "erro" in status_lower:
+                return {
+                    "success": False,
+                    "message": "Processado com Erros.",
+                    "details": current_status,
+                    "state": "error",
+                }
+
+            if current_status in ("NOT_FOUND", "ERROR"):
+                last_details = (
+                    "Arquivo não encontrado na consulta ainda. "
+                    "Pode haver atraso no processamento da prefeitura."
+                )
+
+            if attempt < POLLING_MAX_RETRIES:
+                time.sleep(POLLING_INTERVAL)
+
+        timeout_details = (
+            last_details
+            or f"Último status observado: {last_status}."
+        )
+        return {
+            "success": False,
+            "message": "Tempo limite excedido ao aguardar processamento final.",
+            "details": timeout_details,
+            "state": "pending",
+        }
 
 
 def run_rpa_process(

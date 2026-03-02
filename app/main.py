@@ -1,6 +1,7 @@
 import os
 import uuid
 import threading
+import time
 import pandas as pd
 from flask import (
     Blueprint,
@@ -12,6 +13,7 @@ from flask import (
 )
 from werkzeug.utils import secure_filename
 from app.config import Config
+from app.layout_config import REQUIRED_HEADER_FIELDS
 from app.converter import process_conversion
 from rpa.bot_controller import run_rpa_process
 from rpa.utils import setup_logger
@@ -19,7 +21,13 @@ from rpa.utils import setup_logger
 
 bp = Blueprint("main", __name__)
 conversions = {}
+rpa_tasks = {}
 logger = setup_logger("app_main")
+conversions_lock = threading.Lock()
+rpa_tasks_lock = threading.Lock()
+
+TASK_TTL_SECONDS = int(os.environ.get("TASK_TTL_SECONDS", "3600"))
+MAX_TASKS_IN_MEMORY = int(os.environ.get("MAX_TASKS_IN_MEMORY", "2000"))
 
 
 def load_configurations():
@@ -57,23 +65,87 @@ def allowed_file(filename):
     )
 
 
+def validate_header_fields(form_data):
+    missing = []
+    for field in REQUIRED_HEADER_FIELDS:
+        if not str(form_data.get(field, "")).strip():
+            missing.append(field)
+    return missing
+
+
+def sanitize_task_payload(task_payload):
+    return {k: v for k, v in task_payload.items() if not k.startswith("_")}
+
+
+def cleanup_task_store(store, lock):
+    now = time.time()
+    with lock:
+        expired_ids = [
+            task_id
+            for task_id, payload in store.items()
+            if now - payload.get("_updated_at", payload.get("_created_at", now))
+            > TASK_TTL_SECONDS
+        ]
+        for task_id in expired_ids:
+            store.pop(task_id, None)
+
+        overflow = len(store) - MAX_TASKS_IN_MEMORY
+        if overflow > 0:
+            ordered_ids = sorted(
+                store.keys(),
+                key=lambda task_id: store[task_id].get(
+                    "_updated_at", store[task_id].get("_created_at", now)
+                ),
+            )
+            for task_id in ordered_ids[:overflow]:
+                store.pop(task_id, None)
+
+
+def cleanup_all_tasks():
+    cleanup_task_store(conversions, conversions_lock)
+    cleanup_task_store(rpa_tasks, rpa_tasks_lock)
+
+
+def resolve_safe_download_path(downloads_dir, requested_filename):
+    if not requested_filename:
+        return None, "Nome do arquivo ausente."
+
+    requested_filename = str(requested_filename).strip()
+    safe_filename = secure_filename(requested_filename)
+
+    if not safe_filename or safe_filename != requested_filename:
+        return None, "Nome de arquivo inválido."
+
+    base_dir = os.path.abspath(downloads_dir)
+    file_path = os.path.abspath(os.path.join(base_dir, safe_filename))
+
+    if os.path.commonpath([base_dir, file_path]) != base_dir:
+        return None, "Caminho de arquivo inválido."
+
+    return file_path, None
+
+
 def update_task_status(task_id, status, progress, msg, details, **kwargs):
-    if task_id in conversions:
-        conversions[task_id]["status"] = status
-        conversions[task_id]["progress"] = progress
-        conversions[task_id]["message"] = msg
-        conversions[task_id]["details"] = details
-        conversions[task_id].update(kwargs)
+    with conversions_lock:
+        if task_id in conversions:
+            conversions[task_id]["status"] = status
+            conversions[task_id]["progress"] = progress
+            conversions[task_id]["message"] = msg
+            conversions[task_id]["details"] = details
+            conversions[task_id]["_updated_at"] = time.time()
+            conversions[task_id].update(kwargs)
 
 
 @bp.route("/")
 def index():
+    cleanup_all_tasks()
     return render_template("index.html", configurations=app_configurations)
 
 
 @bp.route("/upload", methods=["POST"])
 def upload_file():
     logger.info("Recebendo requisição de upload.")
+    cleanup_all_tasks()
     if "file" not in request.files:
         return jsonify({"error": "Nenhum arquivo enviado"}), 400
 
@@ -84,6 +156,18 @@ def upload_file():
     if not original_filename or not allowed_file(original_filename):
         return jsonify({"error": "Arquivo inválido"}), 400
 
+    missing_header_fields = validate_header_fields(form_data)
+    if missing_header_fields:
+        return (
+            jsonify(
+                {
+                    "error": "Campos obrigatórios do cabeçalho ausentes.",
+                    "missing_fields": missing_header_fields,
+                }
+            ),
+            400,
+        )
+
     task_id = str(uuid.uuid4())
     filename = secure_filename(original_filename)
     saved_filename = f"{task_id}_{filename}"
@@ -93,12 +177,15 @@ def upload_file():
     file.save(file_path)
     logger.info(f"Arquivo salvo em: {file_path}")
 
-    conversions[task_id] = {
-        "status": "processing",
-        "progress": 0,
-        "message": "Na fila...",
-        "details": "",
-    }
+    with conversions_lock:
+        conversions[task_id] = {
+            "status": "processing",
+            "progress": 0,
+            "message": "Na fila...",
+            "details": "",
+            "_created_at": time.time(),
+            "_updated_at": time.time(),
+        }
 
     processor_thread = threading.Thread(
         target=process_conversion,
@@ -112,33 +199,43 @@ def upload_file():
 
 @bp.route("/status/<task_id>")
 def status(task_id):
-    task_status = conversions.get(task_id)
+    cleanup_all_tasks()
+    with conversions_lock:
+        task_status = conversions.get(task_id)
     if not task_status:
         return jsonify({"status": "error", "message": "Tarefa não encontrada"}), 404
-    return jsonify(task_status)
+    return jsonify(sanitize_task_payload(task_status))
 
 
 @bp.route("/download/<filename>")
 def download_file(filename):
+    cleanup_all_tasks()
+    file_path, error = resolve_safe_download_path(
+        current_app.config["DOWNLOADS_DIR"], filename
+    )
+    if error:
+        return jsonify({"error": error}), 400
+
+    if not os.path.exists(file_path):
+        return jsonify({"error": "Arquivo não encontrado."}), 404
+
     return send_from_directory(
         current_app.config["DOWNLOADS_DIR"],
-        secure_filename(filename),
+        os.path.basename(file_path),
         as_attachment=True,
     )
 
 
-# Dicionário separado para status do RPA
-rpa_tasks = {}
-
-
 def update_rpa_status(task_id, message, success=None, details=None):
     """Callback para atualizar o status do RPA."""
-    if task_id in rpa_tasks:
-        rpa_tasks[task_id]["message"] = message
-        if success is not None:
-            rpa_tasks[task_id]["success"] = success
-        if details:
-            rpa_tasks[task_id]["details"] = details
+    with rpa_tasks_lock:
+        if task_id in rpa_tasks:
+            rpa_tasks[task_id]["message"] = message
+            rpa_tasks[task_id]["_updated_at"] = time.time()
+            if success is not None:
+                rpa_tasks[task_id]["success"] = success
+            if details:
+                rpa_tasks[task_id]["details"] = details
 
 
 def rpa_worker(task_id, file_path, inscricao, is_dev, mes, ano):
@@ -172,14 +269,17 @@ def rpa_worker(task_id, file_path, inscricao, is_dev, mes, ano):
 
 @bp.route("/rpa/status/<task_id>")
 def rpa_status(task_id):
-    status = rpa_tasks.get(task_id)
+    cleanup_all_tasks()
+    with rpa_tasks_lock:
+        status = rpa_tasks.get(task_id)
     if not status:
         return jsonify({"success": False, "message": "Tarefa RPA não encontrada."}), 404
-    return jsonify(status)
+    return jsonify(sanitize_task_payload(status))
 
 
 @bp.route("/rpa/execute", methods=["POST"])
 def execute_rpa():
+    cleanup_all_tasks()
     data = request.get_json(silent=True)
     if not data:
         return jsonify({"success": False, "message": "JSON inválido."}), 400
@@ -199,7 +299,11 @@ def execute_rpa():
             400,
         )
 
-    file_path = os.path.join(current_app.config["DOWNLOADS_DIR"], filename)
+    file_path, path_error = resolve_safe_download_path(
+        current_app.config["DOWNLOADS_DIR"], filename
+    )
+    if path_error:
+        return jsonify({"success": False, "message": path_error}), 400
 
     if not os.path.exists(file_path):
         return jsonify({"success": False, "message": "Arquivo não encontrado."}), 404
@@ -208,11 +312,14 @@ def execute_rpa():
     rpa_task_id = str(uuid.uuid4())
 
     # Inicializa status
-    rpa_tasks[rpa_task_id] = {
-        "success": None,  # None = Em andamento
-        "message": "Inicializando...",
-        "details": "",
-    }
+    with rpa_tasks_lock:
+        rpa_tasks[rpa_task_id] = {
+            "success": None,  # None = Em andamento
+            "message": "Inicializando...",
+            "details": "",
+            "_created_at": time.time(),
+            "_updated_at": time.time(),
+        }
 
     # Inicia Thread
     thread = threading.Thread(

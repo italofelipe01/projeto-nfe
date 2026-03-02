@@ -9,7 +9,7 @@ chamando os módulos 'file_handler', 'validators' e 'transformers'.
 import datetime
 
 # Configurações de layout
-from app.layout_config import COLUMN_MAPPING, BODY_FIELDS_ORDER
+from app.layout_config import COLUMN_MAPPING, BODY_FIELDS_ORDER, REQUIRED_HEADER_FIELDS
 
 # Módulos de processamento
 from app import file_handler
@@ -239,6 +239,18 @@ def _validate_and_transform_row(row_data, mapping, decimal_separator, valida_dv)
 def _generate_header(form_data):
     # ETAPA 4: Cria a linha de cabeçalho do TXT (usa dados do formulário).
     try:
+        missing_required = [
+            field
+            for field in REQUIRED_HEADER_FIELDS
+            if not str(form_data.get(field, "")).strip()
+        ]
+        if missing_required:
+            missing_fields = ", ".join(missing_required)
+            return None, (
+                "Campos obrigatórios do cabeçalho ausentes: "
+                f"{missing_fields}"
+            )
+
         inscricao = form_data.get("inscricao_municipal", "").strip()
         mes = form_data.get("mes", "").strip().zfill(2)
         ano = form_data.get("ano", "").strip()

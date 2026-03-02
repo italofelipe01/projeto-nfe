@@ -331,13 +331,26 @@ document.addEventListener('DOMContentLoaded', () => {
     function pollRPAStatus(taskId) {
         const statusSpan = rpaStatusText;
         const btn = document.getElementById('btnRunRPA');
+        const pollStartMs = Date.now();
+        const maxPollMs = 15 * 60 * 1000; // 15 minutos
+        const maxConsecutiveErrors = 5;
+        let consecutiveErrors = 0;
 
         const interval = setInterval(async () => {
             try {
+                if ((Date.now() - pollStartMs) > maxPollMs) {
+                    clearInterval(interval);
+                    btn.disabled = false;
+                    statusSpan.className = "text-danger";
+                    statusSpan.innerText = "❌ Tempo limite excedido ao consultar status do robô.";
+                    return;
+                }
+
                 const res = await fetch(`/rpa/status/${taskId}`);
                 if (!res.ok) throw new Error("Erro ao consultar status RPA");
 
                 const statusData = await res.json();
+                consecutiveErrors = 0;
 
                 // Atualiza mensagem na tela
                 statusSpan.innerText = `🤖 ${statusData.message}`;
@@ -358,8 +371,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
             } catch (err) {
                 console.error(err);
+                consecutiveErrors += 1;
                 statusSpan.innerText = "⚠️ Erro ao atualizar status.";
-                // Não para o polling imediatamente, pois pode ser intermitência
+
+                if (consecutiveErrors >= maxConsecutiveErrors) {
+                    clearInterval(interval);
+                    btn.disabled = false;
+                    statusSpan.className = "text-danger";
+                    statusSpan.innerText = "❌ Falha de comunicação persistente ao consultar status do robô.";
+                }
             }
         }, 2000); // Consulta a cada 2 segundos
     }

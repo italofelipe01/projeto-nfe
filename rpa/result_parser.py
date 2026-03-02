@@ -29,7 +29,12 @@ class ISSResultParser:
 
         try:
             sels = SELECTORS["importacao"]
-            result_data = {"success": False, "message": "", "details": ""}
+            result_data = {
+                "success": False,
+                "message": "",
+                "details": "",
+                "state": "unknown",
+            }
 
             # 1. Tenta ler da Grid de Resultados (Prioritário)
             grid_row = self.page.locator(sels.get("grid_status_row", "#dgImportacao tr:nth-child(2)"))
@@ -47,22 +52,26 @@ class ISSResultParser:
                     result_data["success"] = False
                     result_data["message"] = "Arquivo ainda em processamento (Aguardando)."
                     result_data["details"] = "O sistema da prefeitura está lento. Tente novamente mais tarde."
+                    result_data["state"] = "pending"
 
                 elif "erro" in lower_text:
                     result_data["success"] = False
                     result_data["message"] = "Processado com Erros."
                     # Tenta extrair detalhes se possível, ou usa o texto da linha
                     result_data["details"] = grid_text
+                    result_data["state"] = "error"
 
                 elif "sucesso" in lower_text or "êxito" in lower_text:
                     result_data["success"] = True
                     result_data["message"] = "Processado com Sucesso!"
                     result_data["details"] = grid_text
+                    result_data["state"] = "success"
 
                 else:
                     # Status desconhecido
                     result_data["success"] = False
                     result_data["message"] = f"Status desconhecido: {grid_text}"
+                    result_data["state"] = "unknown"
 
                 return result_data
 
@@ -79,6 +88,7 @@ class ISSResultParser:
                 is_success = "sucesso" in full_text.lower() or "êxito" in full_text.lower()
                 result_data["success"] = is_success
                 result_data["message"] = full_text
+                result_data["state"] = "success" if is_success else "error"
 
                 if not is_success:
                     error_label = self.page.locator(sels.get("msg_erro_detalhe", "#lblErro"))
@@ -91,7 +101,8 @@ class ISSResultParser:
             return {
                 "success": False,
                 "message": "Não foi possível determinar o resultado do processamento.",
-                "details": "Nenhuma mensagem de sucesso ou erro foi encontrada."
+                "details": "Nenhuma mensagem de sucesso ou erro foi encontrada.",
+                "state": "unknown",
             }
 
         except Exception as e:
@@ -101,6 +112,7 @@ class ISSResultParser:
                 "success": False,
                 "message": "Erro técnico ao ler a resposta do portal.",
                 "details": str(e),
+                "state": "unknown",
             }
 
     def ler_status_processamento(self, nome_arquivo: str) -> str:
